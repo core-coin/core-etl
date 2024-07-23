@@ -1,0 +1,61 @@
+[workspace]
+members = [
+    "bin/core-etl",
+    "crates/etl",
+    "crates/config",
+    "crates/types",
+    "crates/provider",
+    "crates/storage/storage",
+    "crates/storage/mock",
+    "crates/storage/sqlite3"
+]
+
+resolver = "2"
+
+exclude = ["version-compatibility"]
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+panic = "unwind"
+
+[workspace.package]
+authors = ["Core Blockchain Authors"]
+edition = "2021"
+keywords = ["core blockchain", "xcb", "etl"]
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/core-coin/core-etl"
+repository = "https://github.com/core-coin/core-etl"
+version = "0.0.1"
+
+[workspace.dependencies]
+# Workspace members
+core-etl-bin = {path = "./bin/core-etl" }
+etl = {path = "./crates/etl" }
+config = {path = "./crates/config" }
+types = {path = "./crates/types" }
+storage = {path = "./crates/storage/storage"}
+mock_storage = {path = "./crates/storage/mock"}
+sqlite3_storage = {path = "./crates/storage/sqlite3"}
+provider = {path = "./crates/provider"}
+
+anyhow = "1.0"
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+serde_json = "1.0"
+serde_with = { version = "3.4", default-features = false }
+tokio = { version = "1.27", default-features = false, features = ["macros"] }
+tokio-util = { version = "0.7", default-features = false }
+tracing = "0.1"
+tracing-attributes = "0.1"
+async-trait = {version = "0.1.81"}
+tracing-subscriber = "0.3"
+sqlx = { version = "0.6.2", features = ["runtime-tokio-native-tls", "sqlite"]}
+futures = "0.3"
+
+base-primitives = {  git = "https://github.com/core-coin/base-rs.git",default-features = false}
+atoms-provider = {git = "https://github.com/core-coin/atoms-rs.git", features = ["pubsub", "ws"]}
+atoms-rpc-client = {git = "https://github.com/core-coin/atoms-rs.git", features = ["pubsub", "ws"]}
+atoms-json-rpc = {git = "https://github.com/core-coin/atoms-rs.git"}
+atoms-transport = {git = "https://github.com/core-coin/atoms-rs.git"}
+atoms-rpc-types = {git = "https://github.com/core-coin/atoms-rs.git"}
+atoms-pubsub = {git = "https://github.com/core-coin/atoms-rs.git"}

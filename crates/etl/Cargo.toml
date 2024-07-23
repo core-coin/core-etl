@@ -1,0 +1,24 @@
+[package]
+authors = { workspace = true }
+description = "Core Blockchain ETL library."
+edition = { workspace = true }
+homepage = { workspace = true }
+keywords = ["core blockchain", "xcb", "etl"]
+license = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
+name = "etl"
+publish = true
+
+[dependencies]
+config.workspace = true
+storage.workspace = true
+anyhow.workspace = true
+provider.workspace = true
+
+async-trait.workspace = true
+atoms-rpc-types.workspace = true
+tracing.workspace = true
+futures.workspace = true
+tokio.workspace = true
+async-recursion = {version = "1.1.1"}

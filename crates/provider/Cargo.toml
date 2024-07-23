@@ -1,0 +1,25 @@
+[package]
+authors = { workspace = true }
+description = "RPC Provider for ETL"
+edition = { workspace = true }
+homepage = { workspace = true }
+keywords = ["core blockchain", "xcb", "etl", "provider"]
+license = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
+name = "provider"
+publish = true
+
+[dependencies]
+
+atoms-provider = {workspace = true, features = ["pubsub", "ws"]}
+atoms-rpc-client = {workspace = true, features = ["pubsub", "ws"]}
+atoms-json-rpc = {workspace = true}
+atoms-transport = {workspace = true}
+atoms-rpc-types.workspace = true
+atoms-pubsub.workspace = true
+
+types.workspace = true
+
+futures.workspace = true
+tracing.workspace = true

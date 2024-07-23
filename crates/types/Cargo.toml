@@ -1,0 +1,17 @@
+[package]
+authors = { workspace = true }
+description = "Definition for all types used in ETL"
+edition = { workspace = true }
+homepage = { workspace = true }
+keywords = ["core blockchain", "xcb", "etl", "types"]
+license = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
+name = "types"
+publish = true
+
+[dependencies]
+
+base-primitives = { workspace = true}
+atoms-rpc-types.workspace = true
+sqlx.workspace = true

@@ -1,0 +1,11 @@
+[package]
+authors = { workspace = true }
+description = "Core Blockchain ETL config library."
+edition = { workspace = true }
+homepage = { workspace = true }
+keywords = ["core blockchain", "xcb", "etl"]
+license = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
+name = "config"
+publish = true
