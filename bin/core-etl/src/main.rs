@@ -36,14 +36,14 @@ pub(crate) struct Args {
 }
 
 #[derive(Debug, Subcommand)]
-#[command(subcommand_help_heading = "MyAwesomeHeading")]
+#[command(subcommand_help_heading = "Core Blockchain ETL (Extract, Transform, Load) tool")]
 pub enum Commands {
-    /// Determine reads mapping to sample-specific MAGs
-    #[command(subcommand_help_heading = "FirstHeading")]
+    /// Export blockchain data to storage
+    #[command(subcommand_help_heading = "Export data")]
     Export(ExportArgs),
 
-    /// Create sketches from FASTA/Q file(s)
-    #[command(subcommand_help_heading = "SecondHeading")]
+    /// View blockchain data from storage
+    #[command(subcommand_help_heading = "View data")]
     View(ViewArgs),
 }
 

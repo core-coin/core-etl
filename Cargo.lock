@@ -1115,6 +1115,7 @@ dependencies = [
  "storage",
  "tokio",
  "tracing",
+ "types",
 ]
 
 [[package]]

@@ -15,6 +15,7 @@ config.workspace = true
 storage.workspace = true
 anyhow.workspace = true
 provider.workspace = true
+types.workspace = true
 
 async-trait.workspace = true
 atoms-rpc-types.workspace = true

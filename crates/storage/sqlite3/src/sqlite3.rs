@@ -1,9 +1,9 @@
 use async_trait::async_trait;
-use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
+use sqlx::{migrate::MigrateDatabase, Acquire, Sqlite, SqlitePool};
 use std::error::Error;
 use storage::Storage;
 use tracing::{debug, info};
-use types::Block;
+use types::{transaction, Block, Transaction};
 
 #[derive(Debug, Clone)]
 pub struct Sqlite3Storage {
@@ -63,13 +63,36 @@ impl Sqlite3Storage {
         energy_limit INTEGER NOT NULL,
         energy_used INTEGER NOT NULL,
         timestamp INTEGER NOT NULL,
-        transaction_count INTEGER NOT NULL)
+        transaction_count INTEGER NOT NULL,
+        matured BOOLEAN NOT NULL DEFAULT 0
+        )
         ;",
         )
         .execute(&self.get_db())
         .await
         .unwrap();
         debug!("Create blocks table result: {:?}", result);
+
+        let result = sqlx::query(
+            "CREATE TABLE IF NOT EXISTS transactions (
+        hash TEXT PRIMARY KEY NOT NULL,
+        nonce TEXT NOT NULL,
+        block_hash TEXT NOT NULL,
+        block_number INTEGER NOT NULL,
+        transaction_index INTEGER NOT NULL,
+        from_addr TEXT NOT NULL,
+        to_addr TEXT NOT NULL,
+        value TEXT NOT NULL,
+        energy TEXT NOT NULL,
+        energy_price TEXT NOT NULL,
+        input TEXT NOT NULL
+        )
+        ;",
+        )
+        .execute(&self.get_db())
+        .await
+        .unwrap();
+        debug!("Create transactions table result: {:?}", result);
         Ok(())
     }
 }
@@ -85,7 +108,7 @@ impl Storage for Sqlite3Storage {
     }
 
     async fn add_block(&mut self, block: Block) -> Result<(), Box<dyn Error>> {
-        let result = sqlx::query("INSERT INTO blocks (number, hash, parent_hash, nonce, sha3_uncles, logs_bloom, transactions_root, state_root, receipts_root, miner, difficulty, total_difficulty, extra_data, energy_limit, energy_used, timestamp, transaction_count) VALUES (?, ? , ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        let result = sqlx::query("INSERT INTO blocks (number, hash, parent_hash, nonce, sha3_uncles, logs_bloom, transactions_root, state_root, receipts_root, miner, difficulty, total_difficulty, extra_data, energy_limit, energy_used, timestamp, transaction_count, matured) VALUES (?, ? , ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
             .bind(block.number)
             .bind(block.hash)
             .bind(block.parent_hash)
@@ -103,7 +126,7 @@ impl Storage for Sqlite3Storage {
             .bind(block.energy_used)
             .bind(block.timestamp)
             .bind(block.transaction_count)
-
+            .bind(block.matured)
             .execute(&self.get_db())
             .await?;
         debug!("Added block to db: {:?}", block.number);
@@ -156,5 +179,54 @@ impl Storage for Sqlite3Storage {
             .await?;
         debug!("Updated matured blocks: {:?}", result.rows_affected());
         Ok(())
+    }
+    async fn add_transactions(
+        &mut self,
+        transactions: Vec<Transaction>,
+    ) -> Result<(), Box<dyn Error>> {
+        let mut tx = self.get_db().begin().await?;
+
+        for transaction in transactions {
+            sqlx::query("INSERT INTO transactions (hash, nonce, block_hash, block_number, transaction_index, from_addr, to_addr, value, energy, energy_price, input) VALUES (?, ? , ?, ?, ?, ?, ?, ?, ?, ?, ?);")
+            .bind(transaction.hash)
+            .bind(transaction.nonce)
+            .bind(transaction.block_hash)
+            .bind(transaction.block_number)
+            .bind(transaction.transaction_index)
+            .bind(transaction.from)
+            .bind(transaction.to)
+            .bind(transaction.value)
+            .bind(transaction.energy)
+            .bind(transaction.energy_price)
+            .bind(transaction.input)
+            // .bind(transaction.network_id)
+            // .bind(transaction.signature)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    async fn get_block_transctions(
+        &self,
+        block_number: i64,
+    ) -> Result<Vec<Transaction>, Box<dyn Error>> {
+        let transactions =
+            sqlx::query_as::<_, Transaction>("SELECT * FROM transactions WHERE block_number = ?")
+                .bind(block_number)
+                .fetch_all(&self.get_db())
+                .await?;
+        Ok(transactions)
+    }
+
+    async fn get_transaction_by_hash(&self, hash: String) -> Result<Transaction, Box<dyn Error>> {
+        let transaction =
+            sqlx::query_as::<_, Transaction>("SELECT * FROM transactions WHERE hash = ?")
+                .bind(hash)
+                .fetch_one(&self.get_db())
+                .await?;
+        Ok(transaction)
     }
 }

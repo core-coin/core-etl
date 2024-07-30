@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
 use clap::Parser;
 use config::Config;
 use provider::Provider;
@@ -10,7 +13,7 @@ impl ExportArgs {
         &self,
         config: Config,
         provider: Provider,
-        storage: Box<dyn Storage + Send + Sync>,
+        storage: Arc<Mutex<dyn Storage>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut worker = etl::ETLWorker::new(config, storage, provider);
         worker.run().await

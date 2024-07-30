@@ -1,16 +1,20 @@
 use async_trait::async_trait;
 use std::error::Error;
 use storage::Storage;
-use types::Block;
+use types::{Block, Transaction};
 
 #[derive(Debug, Clone)]
 pub struct MockStorage {
     pub blocks: Vec<Block>,
+    pub transactions: Vec<Transaction>,
 }
 
 impl MockStorage {
     pub fn new() -> Self {
-        Self { blocks: vec![] }
+        Self {
+            blocks: vec![],
+            transactions: vec![],
+        }
     }
 }
 
@@ -53,5 +57,23 @@ impl Storage for MockStorage {
 
     async fn update_blocks_to_matured(&mut self, _block_number: i64) -> Result<(), Box<dyn Error>> {
         Ok(())
+    }
+
+    async fn add_transactions(
+        &mut self,
+        _transactions: Vec<Transaction>,
+    ) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    async fn get_block_transctions(
+        &self,
+        _block_number: i64,
+    ) -> Result<Vec<Transaction>, Box<dyn Error>> {
+        Ok(vec![])
+    }
+
+    async fn get_transaction_by_hash(&self, _hash: String) -> Result<Transaction, Box<dyn Error>> {
+        Ok(self.transactions.first().unwrap().clone())
     }
 }
