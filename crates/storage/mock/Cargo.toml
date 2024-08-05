@@ -1,0 +1,17 @@
+[package]
+authors = { workspace = true }
+description = "Mock storage for ETL"
+edition = { workspace = true }
+homepage = { workspace = true }
+keywords = ["core blockchain", "xcb", "etl", "mock-storage"]
+license = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
+name = "mock_storage"
+publish = true
+
+[dependencies]
+
+storage.workspace = true
+types.workspace = true
+async-trait.workspace = true

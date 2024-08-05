@@ -1,0 +1,16 @@
+[package]
+authors = { workspace = true }
+description = "Definition for storage type that is used in ETL"
+edition = { workspace = true }
+homepage = { workspace = true }
+keywords = ["core blockchain", "xcb", "etl", "storage"]
+license = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
+name = "storage"
+publish = true
+
+[dependencies]
+
+types.workspace = true
+async-trait.workspace = true

@@ -1,0 +1,40 @@
+[package]
+authors = { workspace = true }
+description = "Core Blockchain ETL binary."
+edition = { workspace = true }
+homepage = { workspace = true }
+keywords = ["core blockchain", "xcb", "etl"]
+license = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
+name = "core-etl-bin"
+publish = true
+
+[[bin]]
+name = "core-etl"
+path = "src/main.rs"
+
+[dependencies]
+config.workspace = true
+etl.workspace = true
+provider.workspace = true
+mock_storage.workspace = true
+storage.workspace = true
+sqlite3_storage.workspace = true
+
+anyhow.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = [
+  "ansi",
+  "env-filter",
+  "json",
+] }
+
+clap = { version = "4", features = ["derive", "env", "unicode", "wrap_help"] }
+clap_complete = "4"
+clap_complete_fig = "4"
+dotenvy = { version = "0.15" }
