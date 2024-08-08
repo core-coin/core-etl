@@ -1,5 +1,6 @@
 mod logging;
-use std::error::Error;
+use std::{error::Error, pin::Pin};
+use types::Network;
 
 use logging::init_logging;
 mod app_config;
@@ -15,13 +16,21 @@ use view::ViewArgs;
 mod export;
 use export::ExportArgs;
 
+mod verify;
+use verify::VerifyArgs;
+
 /// Commands for core-etl application
 #[derive(Debug, Parser)]
 #[clap(name = "core-etl", author, version, about)]
 pub(crate) struct Args {
     /// URL of the RPC node that provides the blockchain data
-    #[clap(short, long, env, default_value = "ws://127.0.0.1:8546")]
-    pub rpc_url: String,
+    #[clap(short, long, env)]
+    pub rpc_url: Option<String>,
+
+    #[clap(short, long, env, value_enum)]
+    /// Network to sync data from (e.g. mainnet, devin, private)
+    /// If flag is set - rpc_url is not required
+    pub network: Option<Network>,
 
     /// Storage type which is used for saving the blockchain data
     #[clap(long, env, default_value_t, value_enum)]
@@ -45,17 +54,25 @@ pub enum Commands {
     /// View blockchain data from storage
     #[command(subcommand_help_heading = "View data")]
     View(ViewArgs),
+
+    /// Verify blockchain data in storage
+    #[command(subcommand_help_heading = "Verify data")]
+    Verify(VerifyArgs),
 }
 
 impl Args {
-    pub(crate) async fn exec(&self) -> Result<(), Box<dyn Error>> {
+    pub(crate) async fn exec(&self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         let config = self.load_config();
         let storage = self.choose_storage().await;
 
         match &self.command {
             Commands::Export(export_args) => {
-                let provider = Provider::new(self.rpc_url.clone()).await;
+                let provider = Provider::new(config.rpc_url.clone()).await;
                 export_args.exec(config, provider, storage).await
+            }
+            Commands::Verify(verify_args) => {
+                let provider = Provider::new(config.rpc_url.clone()).await;
+                verify_args.exec(config, provider, storage).await
             }
             Commands::View(view_args) => view_args.exec(config, storage).await,
         }
@@ -63,7 +80,7 @@ impl Args {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
     init_logging();
     dotenv().ok();
 

@@ -51,6 +51,9 @@ async-trait = {version = "0.1.81"}
 tracing-subscriber = "0.3"
 sqlx = { version = "0.6.2", features = ["runtime-tokio-native-tls", "sqlite"]}
 futures = "0.3"
+clap = { version = "4", features = ["derive", "env", "unicode", "wrap_help"] }
+clap_complete = "4"
+clap_complete_fig = "4"
 
 base-primitives = {  git = "https://github.com/core-coin/base-rs.git",default-features = false}
 atoms-provider = {git = "https://github.com/core-coin/atoms-rs.git", features = ["pubsub", "ws"]}
