@@ -13,6 +13,7 @@ pub struct Provider {
 
 impl Provider {
     pub async fn new(api_url: String) -> Self {
+        info!("Connecting to provider at {}", api_url);
         let ws = WsConnect::new(api_url.clone());
         let client = atoms_rpc_client::RpcClient::connect_pubsub(ws)
             .await

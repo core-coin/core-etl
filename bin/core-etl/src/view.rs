@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use config::Config;
-use std::sync::Arc;
+use std::{pin::Pin, sync::Arc};
 use storage::Storage;
 use tokio::sync::Mutex;
 use tracing::info;
@@ -36,7 +36,7 @@ impl ViewArgs {
         &self,
         _config: Config,
         storage: Arc<Mutex<dyn Storage>>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Pin<Box<dyn std::error::Error + Send + Sync>>> {
         match &self.sub {
             ViewSubcommands::Block {
                 group: BlockGroup { number, hash },
