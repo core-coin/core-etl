@@ -81,9 +81,17 @@ impl VerifyArgs {
                     }
                 }
 
-                info!("DB is synced on block {}", blocks.last().unwrap().number);
-                info!("All blocks are in order");
-                info!("Last block in blockchain: {}", rpc_block);
+               info!(
+                   last_synced_block = blocks.last().unwrap().number,
+                   "DB is synced"
+               );
+               info!(
+                   "All blocks are in order"
+               );
+               info!(
+                   last_block_in_chain = %rpc_block,
+                   "Last block in blockchain"
+               );
                 Ok(())
             }
             VerifySubcommands::Transactions {} => Ok(()),
