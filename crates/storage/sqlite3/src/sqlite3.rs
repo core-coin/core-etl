@@ -409,7 +409,6 @@ impl Storage for Sqlite3Storage {
         if let Some(to) = to {
             query += format!(" AND to_addr = '{to}'").as_str();
         }
-        println!("Query: {:?}", query);
         let token_transfers = sqlx::query_as::<_, TokenTransfer>(query.as_str())
             .fetch_all(&self.get_db())
             .await
