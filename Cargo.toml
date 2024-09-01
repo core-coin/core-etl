@@ -7,7 +7,9 @@ members = [
     "crates/provider",
     "crates/storage/storage",
     "crates/storage/mock",
-    "crates/storage/sqlite3"
+    "crates/storage/sqlite3",
+    "crates/contracts/contracts",
+    "crates/contracts/cbc20"
 ]
 
 resolver = "2"
@@ -38,6 +40,8 @@ storage = {path = "./crates/storage/storage"}
 mock_storage = {path = "./crates/storage/mock"}
 sqlite3_storage = {path = "./crates/storage/sqlite3"}
 provider = {path = "./crates/provider"}
+contracts = {path = "./crates/contracts/contracts"}
+cbc20 = {path = "./crates/contracts/cbc20"}
 
 anyhow = "1.0"
 serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
@@ -54,6 +58,8 @@ futures = "0.3"
 clap = { version = "4", features = ["derive", "env", "unicode", "wrap_help"] }
 clap_complete = "4"
 clap_complete_fig = "4"
+thiserror = "1.0"
+thiserror-no-std = "2.0.2"
 
 base-primitives = {  git = "https://github.com/core-coin/base-rs.git",default-features = false}
 atoms-provider = {git = "https://github.com/core-coin/atoms-rs.git", features = ["pubsub", "ws"]}

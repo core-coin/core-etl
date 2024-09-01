@@ -1,0 +1,14 @@
+[package]
+authors = { workspace = true }
+description = "CBC20 smart contract library for ETL."
+edition = { workspace = true }
+homepage = { workspace = true }
+keywords = ["core blockchain", "xcb", "smart contracts", "cbc20"]
+license = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
+name = "cbc20"
+publish = true
+
+[dependencies]
+contracts.workspace = true

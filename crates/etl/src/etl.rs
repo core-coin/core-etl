@@ -1,5 +1,6 @@
 use atoms_rpc_types::BlockNumberOrTag;
 use config::Config;
+use contracts::SmartContract;
 use futures::future::join_all;
 use futures::stream::StreamExt;
 use provider::Provider;
@@ -10,7 +11,9 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::{spawn, sync::MutexGuard};
 use tracing::{error, info};
-use types::{Block, SyncMode, Transaction};
+use types::{Block, SyncMode, TokenTransfer, Transaction};
+
+use crate::ETLError;
 
 pub struct ETLWorker {
     pub config: Config,
@@ -18,6 +21,8 @@ pub struct ETLWorker {
     provider: Provider,
 
     sync_mode: SyncMode,
+
+    smart_contracts_processors: Vec<Box<dyn SmartContract>>,
 }
 
 // Clone here makes a copy of the Arc pointer - not  the entire class of data
@@ -29,6 +34,7 @@ impl Clone for ETLWorker {
             config: self.config.clone(),
             provider: self.provider.clone(),
             sync_mode: self.sync_mode.clone(),
+            smart_contracts_processors: self.smart_contracts_processors.clone(),
         }
     }
 }
@@ -40,7 +46,25 @@ impl ETLWorker {
             storage,
             provider,
             sync_mode: SyncMode::FromZeroBlock,
+            smart_contracts_processors: vec![],
         };
+
+        if etl.config.watch_tokens.is_some() {
+            match etl
+                .get_safe_storage()
+                .await
+                .create_token_transfers_tables(etl.clone().config.watch_tokens.unwrap())
+                .await
+            {
+                Ok(_) => info!("Token transfers tables are created"),
+                Err(e) => panic!("Failed to create token transfers tables: {:?}", e),
+            }
+
+            for (contract_name, contract_address) in etl.config.watch_tokens.clone().unwrap() {
+                etl.smart_contracts_processors
+                    .push(etl.select_sc_processor(&contract_name, &contract_address));
+            }
+        }
 
         if etl
             .storage
@@ -138,6 +162,11 @@ impl ETLWorker {
                 SyncMode::FromLastBlockInDB => (latest_db + 1) as i64,
                 SyncMode::FromZeroBlock => 0,
             };
+
+            if latest_db > latest_chain.number {
+                return Err(Box::pin(ETLError::ChainIsNotSyncedOnProvider) as _);
+            }
+
             let mut synced = latest_db;
 
             // Update blocks to matured
@@ -167,12 +196,10 @@ impl ETLWorker {
                             ))
                             .await
                             .unwrap();
+                        // Add block to the database
                         clone.get_safe_storage().await.add_block(new_block).await?;
-                        clone
-                            .get_safe_storage()
-                            .await
-                            .add_transactions(new_txs)
-                            .await?;
+                        // Add transactions to the database and extract token transfers
+                        clone.process_transactions(new_txs).await?;
                         Ok(())
                     }));
 
@@ -225,6 +252,43 @@ impl ETLWorker {
             .await?;
         Ok(())
     }
+
+    async fn process_transactions(
+        &self,
+        transactions: Vec<Transaction>,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        // Add transactions to the database
+        self.get_safe_storage()
+            .await
+            .add_transactions(transactions.clone())
+            .await?;
+        // Extract token transfers from transactions and save them
+        for tx in transactions {
+            for sc in &self.smart_contracts_processors {
+                if tx.to == sc.get_address() {
+                    let mut transfers = vec![];
+                    if sc.check_if_transfer(tx.clone().input) {
+                        let transfer_data =
+                            sc.extract_transfer_data(tx.clone().from, tx.clone().input);
+                        for transfer_data in transfer_data {
+                            transfers.push(TokenTransfer {
+                                from: transfer_data.0,
+                                to: transfer_data.1,
+                                value: transfer_data.2,
+                                tx_hash: tx.hash.clone(),
+                                address: sc.get_address(),
+                            });
+                        }
+                        self.get_safe_storage()
+                            .await
+                            .add_token_transfers(sc.get_table_name(), transfers.clone())
+                            .await?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl ETLWorker {
@@ -249,5 +313,16 @@ impl ETLWorker {
     ) -> Result<(Block, Vec<Transaction>), Pin<Box<dyn Error>>> {
         let res = self.provider.get_block_with_transactions(block).await;
         Ok(res.unwrap())
+    }
+
+    fn select_sc_processor(
+        &self,
+        contract_name: &str,
+        contract_address: &str,
+    ) -> Box<dyn SmartContract> {
+        match contract_name {
+            cbc20::CBC20_NAME => Box::new(cbc20::Cbc20::new(contract_address.to_string())),
+            _ => panic!("Unknown contract name"),
+        }
     }
 }

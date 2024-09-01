@@ -9,6 +9,7 @@ impl Args {
             rpc_url: Network::default().url(),
             block_number: 0,
             continue_sync: false,
+            watch_tokens: None,
         };
 
         if self.rpc_url.is_some() {

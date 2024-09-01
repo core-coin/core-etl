@@ -9,3 +9,9 @@ pub use sync::SyncMode;
 
 pub mod network;
 pub use network::Network;
+
+pub mod token_transfer;
+pub use token_transfer::TokenTransfer;
+
+pub mod transfer_type;
+pub use transfer_type::TransferType;
