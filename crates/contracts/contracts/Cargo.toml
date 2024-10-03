@@ -1,0 +1,13 @@
+[package]
+authors = { workspace = true }
+description = "Smart contracts library for ETL."
+edition = { workspace = true }
+homepage = { workspace = true }
+keywords = ["core blockchain", "xcb", "smart contracts"]
+license = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
+name = "contracts"
+publish = true
+
+[dependencies]

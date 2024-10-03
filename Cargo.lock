@@ -783,6 +783,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "cbc20"
+version = "0.0.1"
+dependencies = [
+ "contracts",
+]
+
+[[package]]
 name = "cc"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -878,6 +885,10 @@ dependencies = [
  "proptest",
  "serde",
 ]
+
+[[package]]
+name = "contracts"
+version = "0.0.1"
 
 [[package]]
 name = "convert_case"
@@ -1111,10 +1122,13 @@ dependencies = [
  "async-recursion",
  "async-trait",
  "atoms-rpc-types",
+ "cbc20",
  "config",
+ "contracts",
  "futures",
  "provider",
  "storage",
+ "thiserror",
  "tokio",
  "tracing",
  "types",
@@ -2117,7 +2131,9 @@ dependencies = [
  "atoms-rpc-client",
  "atoms-rpc-types",
  "atoms-transport",
+ "base-primitives",
  "futures",
+ "thiserror",
  "tracing",
  "types",
 ]

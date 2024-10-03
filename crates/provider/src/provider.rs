@@ -1,10 +1,19 @@
 use atoms_provider::{network::Ethereum, Provider as AtomsProvider, RootProvider};
 use atoms_pubsub::{PubSubFrontend, Subscription};
 use atoms_rpc_client::WsConnect;
-use atoms_rpc_types::BlockNumberOrTag;
-use std::marker::{Send, Sync};
+use atoms_rpc_types::{BlockNumberOrTag, TransactionReceipt};
+use base_primitives::{hex::FromHex, B256};
+use futures::FutureExt;
+use std::{
+    error::Error,
+    f32::consts::E,
+    marker::{Send, Sync},
+    pin::Pin,
+};
 use tracing::info;
-use types::{Block, Transaction}; // Add this line to import the Send and Sync traits
+use types::{Block, Transaction};
+
+use crate::error::ProviderError; // Add this line to import the Send and Sync traits
 
 #[derive(Debug, Clone)]
 pub struct Provider {
@@ -52,5 +61,20 @@ impl Provider {
             }
         };
         Some((block.into(), txs))
+    }
+
+    pub async fn get_transaction_receipt(
+        &self,
+        tx_hash: String,
+    ) -> Result<TransactionReceipt, Pin<Box<dyn Error + Send + Sync>>> {
+        let receipt = self
+            .root
+            .get_transaction_receipt(B256::from_hex(tx_hash).unwrap())
+            .await
+            .unwrap();
+        match receipt {
+            Some(receipt) => Ok(receipt),
+            None => Err(Box::pin(ProviderError::InvalidReceiptHash)),
+        }
     }
 }

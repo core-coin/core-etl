@@ -20,6 +20,10 @@ pub enum ViewSubcommands {
         #[clap(flatten)]
         group: TransactionGroup,
     },
+    TokenTransfer {
+        #[clap(flatten)]
+        group: TokenTransferGroup,
+    },
 }
 
 #[derive(Debug, clap::Args)]
@@ -77,6 +81,43 @@ impl ViewArgs {
                 };
                 Ok(())
             }
+            ViewSubcommands::TokenTransfer {
+                group:
+                    TokenTransferGroup {
+                        token_address,
+                        from,
+                        to,
+                    },
+            } => {
+                if let Some(address) = token_address {
+                    let transfers = storage
+                        .lock()
+                        .await
+                        .get_token_transfers(address.clone(), from.clone(), to.clone())
+                        .await?;
+                    info!("Requested token transfers: {:#?}", transfers);
+                    return Ok(());
+                }
+                if let Some(from) = from {
+                    let transfers = storage
+                        .lock()
+                        .await
+                        .get_address_token_transfers(from.to_string(), types::TransferType::From)
+                        .await?;
+                    info!("Requested token transfers: {:#?}", transfers);
+                    return Ok(());
+                }
+                if let Some(to) = to {
+                    let transfers = storage
+                        .lock()
+                        .await
+                        .get_address_token_transfers(to.to_string(), types::TransferType::To)
+                        .await?;
+                    info!("Requested token transfers: {:#?}", transfers);
+                    return Ok(());
+                }
+                panic!("Invalid token transfer query");
+            }
         }
     }
 }
@@ -88,4 +129,15 @@ pub struct TransactionGroup {
     block_number: Option<i64>,
     #[clap(short = 'n', long, env)]
     hash: Option<String>,
+}
+
+#[derive(Debug, clap::Args)]
+#[group(required = true, multiple = false)]
+pub struct TokenTransferGroup {
+    #[clap(short = 'a', long, env)]
+    token_address: Option<String>,
+    #[clap(short = 'f', long, env)]
+    from: Option<String>,
+    #[clap(short = 't', long, env)]
+    to: Option<String>,
 }

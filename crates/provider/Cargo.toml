@@ -18,8 +18,10 @@ atoms-json-rpc = {workspace = true}
 atoms-transport = {workspace = true}
 atoms-rpc-types.workspace = true
 atoms-pubsub.workspace = true
+base-primitives.workspace = true
 
 types.workspace = true
 
 futures.workspace = true
 tracing.workspace = true
+thiserror.workspace = true

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::{error::Error, fmt::Error as fmt_err, pin::Pin};
 use storage::Storage;
-use types::{Block, Transaction};
+use types::{Block, TokenTransfer, Transaction, TransferType};
 
 #[derive(Debug, Clone)]
 pub struct MockStorage {
@@ -109,5 +109,44 @@ impl Storage for MockStorage {
         _hash: String,
     ) -> Result<Transaction, Pin<Box<dyn Error + Send + Sync>>> {
         Ok(self.transactions.first().unwrap().clone())
+    }
+
+    async fn create_token_transfers_tables(
+        &mut self,
+        _tokens: std::collections::HashMap<String, String>,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        Ok(())
+    }
+
+    async fn add_token_transfers(
+        &mut self,
+        table: String,
+        token_transfer: Vec<TokenTransfer>,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        Ok(())
+    }
+
+    async fn get_token_transfers(
+        &self,
+        _token_address: String,
+        _from: Option<String>,
+        _to: Option<String>,
+    ) -> Result<Vec<TokenTransfer>, Pin<Box<dyn Error + Send + Sync>>> {
+        Ok(vec![])
+    }
+
+    async fn get_transaction_token_transfers(
+        &self,
+        _tx_hash: String,
+    ) -> Result<Vec<TokenTransfer>, Pin<Box<dyn Error + Send + Sync>>> {
+        Ok(vec![])
+    }
+
+    async fn get_address_token_transfers(
+        &self,
+        _address: String,
+        transfer_type: TransferType,
+    ) -> Result<Vec<TokenTransfer>, Pin<Box<dyn Error + Send + Sync>>> {
+        Ok(vec![])
     }
 }

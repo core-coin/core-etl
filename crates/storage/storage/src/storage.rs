@@ -1,7 +1,8 @@
 use async_trait::async_trait;
+use std::collections::HashMap;
 use std::marker::Send;
 use std::{error::Error, pin::Pin};
-use types::{Block, Transaction};
+use types::{token_transfer, Block, TokenTransfer, Transaction, TransferType};
 
 #[async_trait]
 pub trait Storage: Send {
@@ -43,6 +44,35 @@ pub trait Storage: Send {
         &self,
         hash: String,
     ) -> Result<Transaction, Pin<Box<dyn Error + Send + Sync>>>;
+
+    async fn create_token_transfers_tables(
+        &mut self,
+        tokens: HashMap<String, String>,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
+
+    async fn add_token_transfers(
+        &mut self,
+        table: String,
+        token_transfers: Vec<TokenTransfer>,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
+
+    async fn get_token_transfers(
+        &self,
+        token_address: String,
+        from: Option<String>,
+        to: Option<String>,
+    ) -> Result<Vec<TokenTransfer>, Pin<Box<dyn Error + Send + Sync>>>;
+
+    async fn get_transaction_token_transfers(
+        &self,
+        tx_hash: String,
+    ) -> Result<Vec<TokenTransfer>, Pin<Box<dyn Error + Send + Sync>>>;
+
+    async fn get_address_token_transfers(
+        &self,
+        address: String,
+        transfer_type: TransferType,
+    ) -> Result<Vec<TokenTransfer>, Pin<Box<dyn Error + Send + Sync>>>;
 
     async fn prepare_db(&mut self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
 }

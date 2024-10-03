@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Debug, Clone)]
 pub struct Config {
     /// URL of the RPC node that provides the blockchain data
@@ -9,4 +11,7 @@ pub struct Config {
     /// Whether to continue syncing from the last block in the database
     /// This has precedence over the block_number field
     pub continue_sync: bool,
+
+    /// Watch token transfers. Provide a token type and address to watch
+    pub watch_tokens: Option<HashMap<String, String>>,
 }
