@@ -1,8 +1,9 @@
 use atoms_rpc_types::Block as AtomsBlock;
 use base_primitives::{hex::ToHexExt, U256};
+use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-#[derive(Debug, FromRow, Clone)]
+#[derive(Debug, FromRow, Clone, Serialize, Deserialize)]
 pub struct Block {
     pub number: i64,
     pub hash: String,
@@ -22,7 +23,7 @@ pub struct Block {
     pub timestamp: i64,
     pub transaction_count: i64,
 
-    pub matured: bool,
+    pub matured: i64,
 }
 
 impl Into<Block> for AtomsBlock {
@@ -61,7 +62,7 @@ impl Into<Block> for AtomsBlock {
                 .to_string(),
             transaction_count: self.transactions.len() as i64,
             transactions_root: self.header.transactions_root.encode_hex(),
-            matured: false,
+            matured: 0,
         }
     }
 }

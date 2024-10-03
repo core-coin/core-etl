@@ -21,6 +21,8 @@ provider.workspace = true
 mock_storage.workspace = true
 storage.workspace = true
 sqlite3_storage.workspace = true
+d1_storage.workspace = true
+xata_storage.workspace = true
 types.workspace = true
 
 anyhow.workspace = true

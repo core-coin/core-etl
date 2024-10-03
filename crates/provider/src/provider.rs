@@ -3,10 +3,8 @@ use atoms_pubsub::{PubSubFrontend, Subscription};
 use atoms_rpc_client::WsConnect;
 use atoms_rpc_types::{BlockNumberOrTag, TransactionReceipt};
 use base_primitives::{hex::FromHex, B256};
-use futures::FutureExt;
 use std::{
     error::Error,
-    f32::consts::E,
     marker::{Send, Sync},
     pin::Pin,
 };
@@ -76,5 +74,10 @@ impl Provider {
             Some(receipt) => Ok(receipt),
             None => Err(Box::pin(ProviderError::InvalidReceiptHash)),
         }
+    }
+
+    pub async fn get_network_id(&self) -> Result<u64, Pin<Box<dyn Error + Send + Sync>>> {
+        let network_id = self.root.get_chain_id().await.unwrap();
+        Ok(network_id)
     }
 }

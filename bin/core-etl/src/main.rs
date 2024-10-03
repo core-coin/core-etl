@@ -37,8 +37,27 @@ pub(crate) struct Args {
     pub storage: StorageType,
 
     #[clap(short, long, env)]
-    /// URL of the storage where the blockchain data is saved
-    pub storage_url: String,
+    /// Path to SQlite3 file where the blockchain data is saved
+    pub sqlite3_path: Option<String>,
+
+    // #[clap(short, long, env)]
+    // /// D1 database where the blockchain data is saved
+    // pub d1_db_name: Option<String>,
+    #[clap(short, long, env)]
+    /// Xata database DSN where the blockchain data is saved
+    pub xata_db_dsn: Option<String>,
+
+    // #[clap(short, long, env)]
+    // /// Cloudflare API token for D1 database
+    // pub cloudflare_api_token: Option<String>,
+    #[clap(short, long, env, default_value = "etl")]
+    /// Prefix for the tables in the database
+    /// This is useful when running multiple instances of the ETL
+    pub tables_prefix: String,
+
+    #[clap(short, long, env, value_parser, num_args = 1.., value_delimiter = ',', default_value = "blocks,transactions,token_transfers") ]
+    /// Which data will be stored in the database
+    pub modules: Vec<String>,
 
     #[command(subcommand)]
     pub command: Commands,

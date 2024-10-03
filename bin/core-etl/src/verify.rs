@@ -29,7 +29,7 @@ impl VerifyArgs {
         &self,
         _config: Config,
         provider: Provider,
-        storage: Arc<Mutex<dyn Storage>>,
+        storage: Arc<dyn Storage>,
     ) -> Result<(), Pin<Box<dyn std::error::Error + Send + Sync>>> {
         match &self.sub {
             VerifySubcommands::Blocks { block } => {
@@ -42,8 +42,6 @@ impl VerifyArgs {
                 // check blocks from the argument number
                 if block.is_some() {
                     let mut blocks = storage
-                        .lock()
-                        .await
                         .get_blocks_in_range(block.unwrap_or_default(), -1)
                         .await?;
                     blocks.sort_by(|a, b| a.number.cmp(&b.number));
@@ -71,7 +69,7 @@ impl VerifyArgs {
                 }
 
                 // check blocks from 0 to the latest block
-                let mut blocks = storage.lock().await.get_all_blocks().await?;
+                let mut blocks = storage.get_all_blocks().await?;
                 blocks.sort_by(|a, b| a.number.cmp(&b.number));
 
                 for (i, block) in blocks.iter().enumerate() {
@@ -81,17 +79,15 @@ impl VerifyArgs {
                     }
                 }
 
-               info!(
-                   last_synced_block = blocks.last().unwrap().number,
-                   "DB is synced"
-               );
-               info!(
-                   "All blocks are in order"
-               );
-               info!(
-                   last_block_in_chain = %rpc_block,
-                   "Last block in blockchain"
-               );
+                info!(
+                    last_synced_block = blocks.last().unwrap().number,
+                    "DB is synced"
+                );
+                info!("All blocks are in order");
+                info!(
+                    last_block_in_chain = %rpc_block,
+                    "Last block in blockchain"
+                );
                 Ok(())
             }
             VerifySubcommands::Transactions {} => Ok(()),

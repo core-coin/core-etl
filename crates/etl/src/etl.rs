@@ -4,11 +4,14 @@ use contracts::SmartContract;
 use futures::future::join_all;
 use futures::stream::StreamExt;
 use provider::Provider;
+use std::collections::HashMap;
+use std::ops::Deref;
 use std::pin::Pin;
 use std::{error::Error, sync::Arc};
 use storage::Storage;
 use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
+use tokio::task::{self, JoinHandle};
+use tokio::time::{sleep, Duration};
 use tokio::{spawn, sync::MutexGuard};
 use tracing::{error, info};
 use types::{Block, SyncMode, TokenTransfer, Transaction};
@@ -17,16 +20,15 @@ use crate::ETLError;
 
 pub struct ETLWorker {
     pub config: Config,
-    storage: Arc<Mutex<dyn Storage>>,
+    storage: Arc<dyn Storage + Send + Sync>,
     provider: Provider,
-
     sync_mode: SyncMode,
-
     smart_contracts_processors: Vec<Box<dyn SmartContract>>,
+
+    last_saved_block: i64,
+    last_checked_block: i64,
 }
 
-// Clone here makes a copy of the Arc pointer - not  the entire class of data
-// All clones point to the same internal data
 impl Clone for ETLWorker {
     fn clone(&self) -> Self {
         ETLWorker {
@@ -35,58 +37,64 @@ impl Clone for ETLWorker {
             provider: self.provider.clone(),
             sync_mode: self.sync_mode.clone(),
             smart_contracts_processors: self.smart_contracts_processors.clone(),
+            last_saved_block: self.last_saved_block,
+            last_checked_block: self.last_checked_block,
         }
     }
 }
 
 impl ETLWorker {
-    pub async fn new(config: Config, storage: Arc<Mutex<dyn Storage>>, provider: Provider) -> Self {
+    pub async fn new(
+        config: Config,
+        storage: Arc<dyn Storage + Send + Sync>,
+        provider: Provider,
+    ) -> Self {
         let mut etl = ETLWorker {
             config,
             storage,
             provider,
             sync_mode: SyncMode::FromZeroBlock,
             smart_contracts_processors: vec![],
+            last_saved_block: 0,
+            last_checked_block: 0,
         };
 
-        if etl.config.watch_tokens.is_some() {
+        if etl.config.watch_tokens.len() > 0 {
             match etl
-                .get_safe_storage()
-                .await
-                .create_token_transfers_tables(etl.clone().config.watch_tokens.unwrap())
+                .storage
+                .create_token_transfers_tables(etl.config.watch_tokens.clone())
                 .await
             {
-                Ok(_) => info!("Token transfers tables are created"),
+                Ok(_) => {}
                 Err(e) => panic!("Failed to create token transfers tables: {:?}", e),
             }
 
-            for (contract_name, contract_address) in etl.config.watch_tokens.clone().unwrap() {
-                etl.smart_contracts_processors
-                    .push(etl.select_sc_processor(&contract_name, &contract_address));
+            for (contract_name, address_set) in etl.config.watch_tokens.clone() {
+                for contract_address in address_set {
+                    etl.smart_contracts_processors
+                        .push(etl.select_sc_processor(&contract_name, &contract_address));
+                }
             }
         }
 
-        if etl
-            .storage
-            .lock()
-            .await
-            .get_latest_block_number()
-            .await
-            .unwrap()
-            != 0
-            || etl.config.continue_sync
-        // if we have some blocks in the database - we need to continue syncing
-        {
+        let latest_db_block = etl.storage.get_latest_block_number().await.unwrap_or(0);
+        if latest_db_block != 0 {
             etl.sync_mode = SyncMode::FromLastBlockInDB;
-            return etl;
-        }
-        if etl.config.block_number != 0 {
+        } else if etl.config.block_number != 0 {
             etl.sync_mode = SyncMode::FromBlock(etl.config.block_number);
         }
+
         etl
     }
 
     pub async fn run(&mut self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        if self.config.retention_duration > 0 {
+            let retention_duration = Duration::from_secs(self.config.retention_duration as u64);
+            let cleanup_interval = Duration::from_secs(self.config.cleanup_interval as u64);
+            self.storage
+                .start_cleanup_task(cleanup_interval, retention_duration)
+                .await;
+        }
         info!("ETLWorker is running");
         self.sync_old_blocks().await?;
         info!("Stale blocks syncing is finished");
@@ -101,38 +109,46 @@ impl ETLWorker {
             .into_stream()
             .take_while(|x| futures::future::ready(x.header.number.is_some()));
 
-        // Add data about the new block to the database
-        // At first we get header via stream, then we get block and transactions and store them
         while let Some(header) = stream.next().await {
-            let block_height = header.header.number.unwrap().clone() as i64;
-            let (block, transactions) = self
-                .provider
-                .get_block_with_transactions(BlockNumberOrTag::Number(block_height as u64))
-                .await
-                .unwrap();
+            let block_height = header.header.number.unwrap() as i64;
+            let (block, mut transactions, mut token_transfers) =
+                self.fetch_and_process_block(block_height).await?;
             info!(
-                "Imported new block {:?} with {:?} transactions",
+                "Imported new block {:?} with {:?} transactions and {:?} token transfers",
                 block.number,
-                transactions.len()
+                transactions.len(),
+                token_transfers.values().map(|v| v.len()).sum::<usize>()
             );
-            // Add block to the database
-            self.get_safe_storage()
-                .await
-                .add_block(block.clone().into())
-                .await?;
-            // Add transactions to the database
-            self.get_safe_storage()
-                .await
-                .add_transactions(transactions)
-                .await?;
 
-            // Update blocks to matured
+            if let Err(_) = self
+                .safe_insert(
+                    true,
+                    &mut vec![block.clone()],
+                    &mut transactions,
+                    &mut token_transfers,
+                )
+                .await
+            {
+                info!(
+                    "Reorg detected on height {}, cleaning the data and reimporting the block",
+                    block.number
+                );
+                self.storage.clean_block_data(block.number).await?;
+                self.safe_insert(
+                    true,
+                    &mut vec![block],
+                    &mut transactions,
+                    &mut token_transfers,
+                )
+                .await?;
+            }
+
             let mut clone = self.clone();
             spawn(async move {
-                let res = clone.update_blocks_to_matured(block_height - 5).await;
-                match res {
-                    Ok(_) => info!("Blocks till {:?} are matured", block_height - 5),
-                    Err(e) => error!("Failed to mature blocks: {:?}", e),
+                if let Err(e) = clone.update_blocks_to_matured(block_height - 5).await {
+                    error!("Failed to mature blocks: {:?}", e);
+                } else {
+                    info!("Blocks till {:?} are matured", block_height - 5);
                 }
             });
         }
@@ -140,103 +156,172 @@ impl ETLWorker {
         Ok(())
     }
 
-    pub async fn sync_old_blocks(&mut self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
-        Box::pin(async move {
-            // Get the latest block from the chain
-            let latest_chain = self
-                .provider_get_block(BlockNumberOrTag::Latest)
-                .await
-                .unwrap();
+    async fn fetch_and_process_block(
+        &self,
+        block_number: i64,
+    ) -> Result<
+        (Block, Vec<Transaction>, HashMap<String, Vec<TokenTransfer>>),
+        Pin<Box<dyn Error + Sync + Send>>,
+    > {
+        let (new_block, mut new_txs) = self
+            .provider_get_block_with_transactions(BlockNumberOrTag::Number(block_number as u64))
+            .await?;
+        let new_token_transfers = self.extract_token_transfers(new_txs.clone()).await?;
 
-            // Get the latest block from the database
-            let mut latest_db = self.storage_get_latest_block_number().await.unwrap();
-            if latest_chain.number == latest_db {
+        // apply filters
+        if !self.config.address_filter.is_empty() {
+            new_txs = new_txs
+                .into_iter()
+                .filter(|tx| {
+                    self.config.address_filter.contains(&tx.from)
+                        || self.config.address_filter.contains(&tx.to)
+                })
+                .collect();
+        }
+
+        Ok((new_block, new_txs, new_token_transfers))
+    }
+
+    async fn process_results(
+        &self,
+        blocks: &mut Vec<Block>,
+        transactions: &mut Vec<Transaction>,
+        token_transfers: &mut HashMap<String, Vec<TokenTransfer>>,
+        results: Vec<
+            Result<
+                (Block, Vec<Transaction>, HashMap<String, Vec<TokenTransfer>>),
+                Pin<Box<dyn Error + Send + Sync>>,
+            >,
+        >,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        for res in results {
+            match res {
+                Ok((block, txs, token_transfers_batch)) => {
+                    blocks.push(block);
+                    transactions.extend(txs);
+                    for (key, values) in token_transfers_batch {
+                        token_transfers
+                            .entry(key)
+                            .or_insert_with(Vec::new)
+                            .extend(values);
+                    }
+                    self.safe_insert(false, blocks, transactions, token_transfers)
+                        .await?;
+                }
+                Err(e) => return Err(Pin::from(e)),
+            }
+        }
+        Ok(())
+    }
+
+    async fn safe_insert(
+        &self,
+        insert_all: bool,
+        blocks: &mut Vec<Block>,
+        transactions: &mut Vec<Transaction>,
+        token_transfers: &mut HashMap<String, Vec<TokenTransfer>>,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        self.storage
+            .insert_blocks_with_txs_and_token_transfers(
+                insert_all,
+                blocks,
+                transactions,
+                token_transfers,
+            )
+            .await?;
+        Ok(())
+    }
+
+    async fn sync_old_blocks(&mut self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        Box::pin(async move {
+            let latest_provider_block = self.provider_get_block(BlockNumberOrTag::Latest).await?;
+            let latest_db_block = self.storage_get_latest_block_number().await?;
+            if latest_provider_block.number == latest_db_block {
                 return Ok(());
             }
 
-            // if user specified from which block to start - we need to download this block
-            // if we have some block - we need to download next block
-            // if we are on the 0 block - we need to download 0 block
-            let mut latest_db = match self.sync_mode {
+            let mut block_to_load = match self.sync_mode {
                 SyncMode::FromBlock(block) => block,
-                SyncMode::FromLastBlockInDB => (latest_db + 1) as i64,
+                SyncMode::FromLastBlockInDB => (latest_db_block + 1) as i64,
                 SyncMode::FromZeroBlock => 0,
             };
 
-            if latest_db > latest_chain.number {
+            if block_to_load > latest_provider_block.number {
                 return Err(Box::pin(ETLError::ChainIsNotSyncedOnProvider) as _);
             }
 
-            let mut synced = latest_db;
+            let mut log_counter = block_to_load;
 
-            // Update blocks to matured
             let mut clone = self.clone();
-            let update_matured_job: JoinHandle<Result<(), Pin<Box<dyn Error + Send + Sync>>>> =
-                spawn(async move {
-                    clone
-                        .update_blocks_to_matured(latest_chain.number - 5)
-                        .await
-                });
+
+            spawn(async move {
+                clone
+                    .update_blocks_to_matured(latest_provider_block.number - 5)
+                    .await
+            });
 
             info!(
                 "Syncing stale blocks from {} to {}",
-                latest_db, latest_chain.number
+                block_to_load, latest_provider_block.number
             );
 
+            let mut blocks: Vec<Block> = Vec::new();
+            let mut transactions: Vec<Transaction> = Vec::new();
+            let mut token_transfers: HashMap<String, Vec<TokenTransfer>> = HashMap::new();
+
             'outer: loop {
-                let mut tasks: Vec<JoinHandle<Result<(), Pin<Box<dyn Error + Send + Sync>>>>> =
-                    vec![];
-                for _ in 0..10 {
+                let mut tasks: Vec<
+                    JoinHandle<
+                        Result<
+                            (Block, Vec<Transaction>, HashMap<String, Vec<TokenTransfer>>),
+                            Pin<Box<dyn Error + Send + Sync>>,
+                        >,
+                    >,
+                > = vec![];
+
+                for _ in 0..30 {
                     let clone = self.clone();
+                    let block_number = block_to_load;
                     tasks.push(spawn(async move {
-                        // Get the next block from the chain and add it to the database
-                        let (new_block, new_txs) = clone
-                            .provider_get_block_with_transactions(BlockNumberOrTag::Number(
-                                latest_db as u64,
-                            ))
-                            .await
-                            .unwrap();
-                        // Add block to the database
-                        clone.get_safe_storage().await.add_block(new_block).await?;
-                        // Add transactions to the database and extract token transfers
-                        clone.process_transactions(new_txs).await?;
-                        Ok(())
+                        clone.fetch_and_process_block(block_number).await
                     }));
 
-                    if latest_chain.number == latest_db {
+                    if latest_provider_block.number == block_to_load {
                         break;
                     }
 
-                    synced += 1;
-                    latest_db += 1;
+                    log_counter += 1;
+                    block_to_load += 1;
 
-                    if synced % 1000 == 0 {
-                        info!("Synced {} blocks", synced);
+                    if log_counter % 1000 == 0 {
+                        info!("Synced {} blocks", log_counter);
                     }
                 }
 
-                let results = join_all(tasks).await;
-                for res in results {
-                    match res {
-                        Ok(Err(e)) => return Err(e),
-                        Ok(_) => (),
-                        Err(e) => return Err(Box::pin(e)),
-                    }
-                }
+                let results = join_all(tasks)
+                    .await
+                    .into_iter()
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| Box::from(e))?;
+                self.process_results(
+                    &mut blocks,
+                    &mut transactions,
+                    &mut token_transfers,
+                    results,
+                )
+                .await?;
 
-                if latest_chain.number == latest_db {
-                    info!("DB is synced on block {}", latest_chain.number);
+                if latest_provider_block.number == block_to_load {
+                    self.safe_insert(true, &mut blocks, &mut transactions, &mut token_transfers)
+                        .await?;
+                    info!("DB is synced on block {}", latest_provider_block.number);
                     self.sync_mode = SyncMode::FromLastBlockInDB;
+                    sleep(Duration::from_secs(2)).await;
                     self.sync_old_blocks().await?;
                     break 'outer;
                 }
             }
-
-            match tokio::join!(update_matured_job).0 {
-                Ok(Err(e)) => Err(e),
-                Ok(_) => Ok(()),
-                Err(e) => Err(Box::pin(e)),
-            }
+            Ok(())
         })
         .await
     }
@@ -245,64 +330,54 @@ impl ETLWorker {
         &mut self,
         block_height: i64,
     ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
-        self.storage
-            .lock()
-            .await
-            .update_blocks_to_matured(block_height)
-            .await?;
-        Ok(())
+        self.storage.update_blocks_to_matured(block_height).await
     }
 
-    async fn process_transactions(
+    async fn extract_token_transfers(
         &self,
         transactions: Vec<Transaction>,
-    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
-        // Add transactions to the database
-        self.get_safe_storage()
-            .await
-            .add_transactions(transactions.clone())
-            .await?;
-        // Extract token transfers from transactions and save them
+    ) -> Result<HashMap<String, Vec<TokenTransfer>>, Pin<Box<dyn Error + Send + Sync>>> {
+        let mut transfers = HashMap::new();
         for tx in transactions {
             for sc in &self.smart_contracts_processors {
-                if tx.to == sc.get_address() {
-                    let mut transfers = vec![];
-                    if sc.check_if_transfer(tx.clone().input) {
-                        let transfer_data =
-                            sc.extract_transfer_data(tx.clone().from, tx.clone().input);
-                        for transfer_data in transfer_data {
-                            transfers.push(TokenTransfer {
-                                from: transfer_data.0,
-                                to: transfer_data.1,
-                                value: transfer_data.2,
-                                tx_hash: tx.hash.clone(),
-                                address: sc.get_address(),
-                            });
-                        }
-                        self.get_safe_storage()
-                            .await
-                            .add_token_transfers(sc.get_table_name(), transfers.clone())
-                            .await?;
-                    }
+                if tx.to != sc.get_address() || !sc.check_if_transfer(tx.clone().input) {
+                    continue;
+                }
+                let transfer_data = sc.extract_transfer_data(tx.clone().from, tx.clone().input);
+                let processor_token_transfers: Vec<TokenTransfer> = transfer_data
+                    .into_iter()
+                    .map(|(index, from, to, value)| TokenTransfer {
+                        block_number: tx.block_number,
+                        from,
+                        to,
+                        value,
+                        tx_hash: tx.hash.clone(),
+                        address: sc.get_address(),
+                        index: index as i64,
+                    })
+                    .collect();
+                if !processor_token_transfers.is_empty() {
+                    transfers
+                        .entry(sc.get_table_name())
+                        .or_insert_with(Vec::new)
+                        .extend(processor_token_transfers);
                 }
             }
         }
-        Ok(())
-    }
-}
 
-impl ETLWorker {
+        Ok(transfers)
+    }
+
     async fn storage_get_latest_block_number(
         &self,
     ) -> Result<i64, Pin<Box<dyn Error + Sync + Send>>> {
-        self.storage.lock().await.get_latest_block_number().await
+        self.storage.get_latest_block_number().await
     }
 
-    async fn get_safe_storage(&self) -> MutexGuard<dyn Storage> {
-        self.storage.lock().await
-    }
-
-    async fn provider_get_block(&self, block: BlockNumberOrTag) -> Result<Block, Box<dyn Error>> {
+    async fn provider_get_block(
+        &self,
+        block: BlockNumberOrTag,
+    ) -> Result<Block, Box<dyn Error + Send + Sync>> {
         let block = self.provider.get_block(block).await;
         Ok(block.unwrap())
     }
@@ -310,7 +385,7 @@ impl ETLWorker {
     async fn provider_get_block_with_transactions(
         &self,
         block: BlockNumberOrTag,
-    ) -> Result<(Block, Vec<Transaction>), Pin<Box<dyn Error>>> {
+    ) -> Result<(Block, Vec<Transaction>), Pin<Box<dyn Error + Send + Sync>>> {
         let res = self.provider.get_block_with_transactions(block).await;
         Ok(res.unwrap())
     }

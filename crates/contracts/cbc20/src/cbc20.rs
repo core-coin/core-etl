@@ -36,14 +36,14 @@ impl SmartContract for Cbc20 {
         &self,
         sender: String,
         input: String,
-    ) -> Vec<(String, String, String)> {
+    ) -> Vec<(usize, String, String, String)> {
         match &input[..8] {
             // Example: 4b40e901 + 00000000000000000000ab416902d2548d52352a05423d13266ee7aaf140a068 + 0000000000000000000000000000000000000000000000000000000000000001
             "4b40e901" => {
                 let from = sender;
                 let to = input[28..72].to_string();
                 let value = input[72..136].to_string();
-                return vec![(from, to, value)];
+                return vec![(0, from, to, value)];
             }
             /*
             /// Example:
@@ -66,7 +66,7 @@ impl SmartContract for Cbc20 {
                     let value = input
                         [offset + 128 + count * 64 + i * 64..offset + 192 + count * 64 + i * 64]
                         .to_string();
-                    res.push((sender.clone(), to, value));
+                    res.push((i, sender.clone(), to, value));
                 }
                 return res;
             }
@@ -76,7 +76,7 @@ impl SmartContract for Cbc20 {
                 let from = input[28..72].to_string();
                 let to = input[92..136].to_string();
                 let value = input[136..200].to_string();
-                return vec![(from, to, value)];
+                return vec![(0, from, to, value)];
             }
             _ => panic!("Unsupported transfer function: {:?}", input),
         }

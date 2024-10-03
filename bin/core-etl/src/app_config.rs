@@ -8,8 +8,10 @@ impl Args {
         let mut config = Config {
             rpc_url: Network::default().url(),
             block_number: 0,
-            continue_sync: false,
-            watch_tokens: None,
+            watch_tokens: Default::default(),
+            retention_duration: 0,
+            cleanup_interval: 0,
+            address_filter: Default::default(),
         };
 
         if self.rpc_url.is_some() {

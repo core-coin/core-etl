@@ -1,13 +1,13 @@
 [package]
 authors = { workspace = true }
-description = "SQLite3 storage for ETL"
+description = "Xata connector for ETL"
 edition = { workspace = true }
 homepage = { workspace = true }
-keywords = ["core blockchain", "xcb", "etl", "sqlite3-storage"]
+keywords = ["core blockchain", "xcb", "etl", "xata-storage"]
 license = { workspace = true }
 repository = { workspace = true }
 version = { workspace = true }
-name = "sqlite3_storage"
+name = "xata_storage"
 publish = true
 
 [dependencies]
@@ -19,5 +19,8 @@ tracing.workspace = true
 
 async-trait.workspace = true
 sqlx.workspace = true
+serde.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
 chrono.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
