@@ -6,3 +6,4 @@ db.db-wal
 .env
 .xata
 .xatarc
+data/

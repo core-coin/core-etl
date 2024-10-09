@@ -1,79 +1,10 @@
 # Variables
-ENDPOINT_URL ?= ws://127.0.0.1:8546
-SQLITE3_DB_FILE ?= sqlite3.db
-FLAGS ?=
-D1_DATABASE ?= default-d1-database
-CLOUDFLARE_API_TOKEN ?= 
-
-export CLOUDFLARE_API_TOKEN
+CORE_ETL_FLAGS ?= -r ws://go-core:8546 -s /data/data.sqld/dbs/default/data
+CORE_ETL_EXPORT_FLAGS ?= -c 3600
+GO_CORE_FLAGS ?= --ws --ws.addr 0.0.0.0
 
 # Targets
-.PHONY: initial_d1 run_etl_sqlite dump_db clean_sql_for_d1 execute_sql run_etl_d1 clean_sqlite build continue_d1
-
-initial_d1: run_etl_sqlite dump_db clean_sql_for_d1 execute_sql run_etl_d1
-continue_d1: run_etl_d1
-
-run_etl_sqlite:
-	@echo "Running core-etl with endpoint: $(ENDPOINT_URL), database: $(SQLITE3_DB_FILE), flags: $(FLAGS)"
-	@bash -c ' \
-	set -e; \
-	touch core-etl.log; \
-	./target/debug/core-etl -r $(ENDPOINT_URL) -s $(SQLITE3_DB_FILE) export $(FLAGS) 2>&1 | tee core-etl.log & \
-	PID=$$!; \
-	echo "core-etl PID: $$PID"; \
-	trap "echo Stopping core-etl; kill -TERM $$PID; wait $$PID" SIGINT SIGTERM; \
-	while kill -0 $$PID 2>/dev/null; do \
-		if grep -q "Imported new block" core-etl.log; then \
-			echo "Log detected: Imported new block"; \
-			kill -TERM $$PID; \
-			break; \
-		fi; \
-		sleep 1; \
-	done; \
-	EXIT_CODE=$$?; \
-	if [ $$EXIT_CODE -eq 143 ]; then \
-		echo "core-etl was terminated by SIGTERM"; \
-	elif [ $$EXIT_CODE -eq 0 ]; then \
-		echo "core-etl completed successfully"; \
-	else \
-		echo "core-etl exited with code $$EXIT_CODE"; \
-	fi; \
-	exit $$EXIT_CODE; \
-	'
-	
-dump_db:
-	@echo "Dumping SQLite database to sqlite3_dump.sql"
-	@sqlite3 $(SQLITE3_DB_FILE) .dump > sqlite3_dump.sql
-
-clean_sql_for_d1:
-	@echo "Cleaning sqlite3_dump.sql"
-	@sed -i '/PRAGMA foreign_keys=OFF;/d' sqlite3_dump.sql
-	@sed -i '/BEGIN TRANSACTION;/d' sqlite3_dump.sql
-	@sed -i '/COMMIT;/d' sqlite3_dump.sql
-
-execute_sql:
-	@echo "Executing sqlite3_dump.sql on D1 database"
-	@npx wrangler d1 execute $(D1_DATABASE) -y --remote --file=sqlite3_dump.sql
-
-run_etl_d1:
-	@echo "Running core-etl with endpoint: $(ENDPOINT_URL), D1 database: $(D1_DATABASE), flags: $(FLAGS)"
-	@bash -c ' \
-	set -e; \
-	./target/debug/core-etl -r $(ENDPOINT_URL) -d $(D1_DATABASE) --storage d1-storage export $(FLAGS) & \
-	PID=$$!; \
-	echo "core-etl PID: $$PID"; \
-	trap "echo Stopping core-etl; kill -TERM $$PID; wait $$PID" SIGINT SIGTERM; \
-	wait $$PID; \
-	EXIT_CODE=$$?; \
-	if [ $$EXIT_CODE -eq 143 ]; then \
-		echo "core-etl was terminated by SIGTERM"; \
-	elif [ $$EXIT_CODE -eq 0 ]; then \
-		echo "core-etl completed successfully"; \
-	else \
-		echo "core-etl exited with code $$EXIT_CODE"; \
-	fi; \
-	exit $$EXIT_CODE; \
-	'
+.PHONY: build up down clean 
 
 clean:
 	@echo "Cleaning up core-etl.log, sqlite3.db and db.db"
@@ -81,6 +12,46 @@ clean:
 	@rm -f sqlite3.db sqlite3.db-shm sqlite3.db-wal sqlite3_dump.sql
 	@rm -f db.db db.db-shm db.db-wal db_dump.sql
 
+# Build Docker images
 build:
-	@echo "Building core-etl"
-	@cargo build
+	docker-compose build
+
+# Initialize database mount that is used both by core-etl and libsql-server
+init:
+	@echo "Initializing database mount"
+	docker-compose -f docker-compose-init.yml up  -d
+	@sleep 3
+	docker-compose -f docker-compose-init.yml down
+# Builds, (re)creates, starts, and attaches to containers for a service
+up:
+	GO_CORE_FLAGS="$(GO_CORE_FLAGS)" CORE_ETL_FLAGS="$(CORE_ETL_FLAGS)" CORE_ETL_EXPORT_FLAGS="$(CORE_ETL_EXPORT_FLAGS)" docker-compose up -d
+
+# Stops and removes containers, networks, volumes, and images created by docker-compose up
+down:
+	docker-compose down
+
+# Stops running containers without removing them. The containers can be restarted with make start
+stop:
+	docker-compose stop
+
+# Starts existing containers that were stopped
+start:
+	docker-compose start
+
+# Clean shared volume
+clean-volume:
+	@echo "Cleaning up libsql database volume"
+	@sudo rm -rf data
+	
+
+# # Run Go-core
+# run-go-core:
+# 	docker-compose run go-core gocore $(GO_CORE_FLAGS)
+
+# # Run Core-etl with optional flags
+# run-core-etl:
+# 	docker-compose run core-etl /usr/local/bin/core-etl $(CORE_ETL_FLAGS) export $(CORE_ETL_EXPORT_FLAGS)
+
+# # Run libsql-server
+# run-libsql-server:
+# 	docker-compose run libsql-server

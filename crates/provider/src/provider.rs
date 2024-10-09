@@ -1,6 +1,6 @@
 use atoms_provider::{network::Ethereum, Provider as AtomsProvider, RootProvider};
 use atoms_pubsub::{PubSubFrontend, Subscription};
-use atoms_rpc_client::WsConnect;
+use atoms_rpc_client::{RpcClient, WsConnect};
 use atoms_rpc_types::{BlockNumberOrTag, TransactionReceipt};
 use base_primitives::{hex::FromHex, B256};
 use std::{
@@ -8,6 +8,7 @@ use std::{
     marker::{Send, Sync},
     pin::Pin,
 };
+use tokio::time::{sleep, Duration};
 use tracing::info;
 use types::{Block, Transaction};
 
@@ -20,12 +21,23 @@ pub struct Provider {
 
 impl Provider {
     pub async fn new(api_url: String) -> Self {
-        info!("Connecting to provider at {}", api_url);
-        let ws = WsConnect::new(api_url.clone());
-        let client = atoms_rpc_client::RpcClient::connect_pubsub(ws)
-            .await
-            .unwrap();
-        let provider: RootProvider<PubSubFrontend> = RootProvider::<_, Ethereum>::new(client);
+        // try to connect to the provider 5 times before giving up
+        // wait 5 seconds between each attempt
+        let mut client = RpcClient::connect_pubsub(WsConnect::new(api_url.clone())).await;
+        for try_num in 0..5 {
+            if client.is_ok() {
+                break;
+            }
+            info!(
+                "Connecting to provider at {}. {} try...",
+                api_url,
+                try_num + 1
+            );
+            sleep(Duration::from_secs(5)).await;
+            client = RpcClient::connect_pubsub(WsConnect::new(api_url.clone())).await;
+        }
+        let provider: RootProvider<PubSubFrontend> =
+            RootProvider::<_, Ethereum>::new(client.unwrap());
         info!("Connected to provider at {}", api_url);
         Self { root: provider }
     }

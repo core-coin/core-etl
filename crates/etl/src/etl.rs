@@ -14,7 +14,7 @@ use tokio::task::{self, JoinHandle};
 use tokio::time::{sleep, Duration};
 use tokio::{spawn, sync::MutexGuard};
 use tracing::{error, info};
-use types::{Block, SyncMode, TokenTransfer, Transaction};
+use types::{Block, TokenTransfer, Transaction};
 
 use crate::ETLError;
 
@@ -22,7 +22,6 @@ pub struct ETLWorker {
     pub config: Config,
     storage: Arc<dyn Storage + Send + Sync>,
     provider: Provider,
-    sync_mode: SyncMode,
     smart_contracts_processors: Vec<Box<dyn SmartContract>>,
 
     last_saved_block: i64,
@@ -35,7 +34,6 @@ impl Clone for ETLWorker {
             storage: Arc::clone(&self.storage),
             config: self.config.clone(),
             provider: self.provider.clone(),
-            sync_mode: self.sync_mode.clone(),
             smart_contracts_processors: self.smart_contracts_processors.clone(),
             last_saved_block: self.last_saved_block,
             last_checked_block: self.last_checked_block,
@@ -53,7 +51,6 @@ impl ETLWorker {
             config,
             storage,
             provider,
-            sync_mode: SyncMode::FromZeroBlock,
             smart_contracts_processors: vec![],
             last_saved_block: 0,
             last_checked_block: 0,
@@ -78,12 +75,11 @@ impl ETLWorker {
         }
 
         let latest_db_block = etl.storage.get_latest_block_number().await.unwrap_or(0);
-        if latest_db_block != 0 {
-            etl.sync_mode = SyncMode::FromLastBlockInDB;
-        } else if etl.config.block_number != 0 {
-            etl.sync_mode = SyncMode::FromBlock(etl.config.block_number);
-        }
-
+        etl.last_saved_block = if latest_db_block != 0 {
+            latest_db_block // start from the latest block in the db
+        } else {
+            etl.config.block_number - 1 // -1 to start from the block_number
+        };
         etl
     }
 
@@ -235,16 +231,15 @@ impl ETLWorker {
     async fn sync_old_blocks(&mut self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         Box::pin(async move {
             let latest_provider_block = self.provider_get_block(BlockNumberOrTag::Latest).await?;
-            let latest_db_block = self.storage_get_latest_block_number().await?;
-            if latest_provider_block.number == latest_db_block {
+            // already synced
+            if self.last_saved_block == latest_provider_block.number
+            // checked all blocks but the last one do not have data which needs to be stored
+                && self.last_checked_block == latest_provider_block.number
+            {
                 return Ok(());
             }
 
-            let mut block_to_load = match self.sync_mode {
-                SyncMode::FromBlock(block) => block,
-                SyncMode::FromLastBlockInDB => (latest_db_block + 1) as i64,
-                SyncMode::FromZeroBlock => 0,
-            };
+            let mut block_to_load = self.last_saved_block + 1;
 
             if block_to_load > latest_provider_block.number {
                 return Err(Box::pin(ETLError::ChainIsNotSyncedOnProvider) as _);
@@ -315,8 +310,8 @@ impl ETLWorker {
                     self.safe_insert(true, &mut blocks, &mut transactions, &mut token_transfers)
                         .await?;
                     info!("DB is synced on block {}", latest_provider_block.number);
-                    self.sync_mode = SyncMode::FromLastBlockInDB;
-                    sleep(Duration::from_secs(2)).await;
+                    self.last_checked_block = latest_provider_block.number;
+                    self.last_saved_block = latest_provider_block.number;
                     self.sync_old_blocks().await?;
                     break 'outer;
                 }

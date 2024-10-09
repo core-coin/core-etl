@@ -10,7 +10,7 @@ use std::{
     result,
 };
 use storage::Storage;
-use tokio::{time, time::Duration};
+use tokio::time::{self, sleep, Duration};
 use tracing::{debug, error, info};
 use types::{token_transfer, transaction, Block, TokenTransfer, Transaction, TransferType};
 
@@ -182,24 +182,25 @@ impl Storage for Sqlite3Storage {
                             format!(
                                 "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{}_%_transfers'", self.tables_prefix).as_str(),
                         ).fetch_all(&self.pool).await.map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
-                        let table_name: String = stmt
-                            .first()
-                            .map(|row| row.get::<String, _>("name"))
-                            .unwrap();
-
-                        let result = sqlx::query_as::<_, TokenTransfer>(
-                            format!(
-                                "SELECT * FROM {} ORDER BY block_number DESC LIMIT 1",
-                                table_name
-                            )
-                            .as_str(),
-                        )
-                        .fetch_one(&self.pool)
-                        .await;
-                        match result {
-                            Ok(tt) => Ok(tt.block_number),
-                            Err(sqlx::Error::RowNotFound) => Ok(0), // No data in the database
-                            Err(e) => Err(Box::pin(e)),
+                        let table_name = stmt.first().map(|row| row.get::<String, _>("name"));
+                        match table_name {
+                            Some(table_name) => {
+                                let result = sqlx::query_as::<_, TokenTransfer>(
+                                    format!(
+                                        "SELECT * FROM {} ORDER BY block_number DESC LIMIT 1",
+                                        table_name
+                                    )
+                                    .as_str(),
+                                )
+                                .fetch_one(&self.pool)
+                                .await;
+                                match result {
+                                    Ok(tt) => Ok(tt.block_number),
+                                    Err(sqlx::Error::RowNotFound) => Ok(0), // No data in the database
+                                    Err(e) => Err(Box::pin(e)),
+                                }
+                            }
+                            None => Ok(0), // No data in the database
                         }
                     }
                     Err(e) => Err(Box::pin(e)),

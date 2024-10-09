@@ -2277,6 +2277,7 @@ dependencies = [
  "base-primitives",
  "futures",
  "thiserror",
+ "tokio",
  "tracing",
  "types",
 ]
