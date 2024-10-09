@@ -6,8 +6,8 @@ services:
     container_name: libsql-server
     volumes:
       - ./data/sqlite/data.sqld/dbs/default/data:/var/lib/sqld/data.sqld/dbs/default/data:ro
-      - ./data/sqlite/data.sqld/dbs/default/data-shm:/var/lib/sqld/data.sqld/dbs/default/data-shm:ro
-      - ./data/sqlite/data.sqld/dbs/default/data-wal:/var/lib/sqld/data.sqld/dbs/default/data-wal:ro
+      - ./data/sqlite/data.sqld/dbs/default/data-shm:/var/lib/sqld/data.sqld/dbs/default/data-shm
+      - ./data/sqlite/data.sqld/dbs/default/data-wal:/var/lib/sqld/data.sqld/dbs/default/data-wal
     ports:
       - "8081:8081" # Expose port 8081 on the host machine
     environment:
