@@ -274,7 +274,7 @@ impl ETLWorker {
                     >,
                 > = vec![];
 
-                for _ in 0..30 {
+                for _ in 0..10 {
                     let clone = self.clone();
                     let block_number = block_to_load;
                     tasks.push(spawn(async move {
