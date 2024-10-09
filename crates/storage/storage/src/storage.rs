@@ -1,17 +1,47 @@
 use async_trait::async_trait;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::marker::Send;
+use std::ops::DerefMut;
 use std::{error::Error, pin::Pin};
+use tokio::time::Duration;
 use types::{token_transfer, Block, TokenTransfer, Transaction, TransferType};
 
 #[async_trait]
-pub trait Storage: Send {
-    async fn add_block(&mut self, block: Block) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
-    async fn add_block_with_replace(
-        &mut self,
-        block: Block,
+pub trait Storage: Send + Sync {
+    /// Prepare the database for use. This should be called before any other methods.
+    /// This should create the necessary tables.
+    async fn prepare_db(&self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
+    /// Create indexes
+    async fn create_indexes(&self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
+    /// Get the latest block number in the database
+    async fn get_latest_block_number(&self) -> Result<i64, Pin<Box<dyn Error + Send + Sync>>>;
+    /// Update blocks to matured
+    async fn update_blocks_to_matured(
+        &self,
+        block_number: i64,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
+    /// Create all token transfers tables
+    async fn create_token_transfers_tables(
+        &self,
+        tokens: HashMap<String, HashSet<String>>,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
+    /// Clean block data with all related transactions and token transfers
+    async fn clean_block_data(
+        &self,
+        block_number: i64,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
+    /// Insert blocks with transactions and token transfers
+    async fn insert_blocks_with_txs_and_token_transfers(
+        &self,
+        insert_all: bool,
+        blocks: &mut Vec<Block>,
+        transactions: &mut Vec<Transaction>,
+        token_transfers: &mut HashMap<String, Vec<TokenTransfer>>,
     ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
 
+    async fn start_cleanup_task(&self, interval: Duration, retention_duration: Duration);
+
+    // View functions
     async fn get_block_by_number(
         &self,
         block_number: i64,
@@ -26,17 +56,8 @@ pub trait Storage: Send {
         start: i64,
         end: i64,
     ) -> Result<Vec<Block>, Pin<Box<dyn Error + Send + Sync>>>;
-    async fn get_latest_block_number(&self) -> Result<i64, Pin<Box<dyn Error + Send + Sync>>>;
-    async fn update_blocks_to_matured(
-        &mut self,
-        block_number: i64,
-    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
 
-    async fn add_transactions(
-        &mut self,
-        transactions: Vec<Transaction>,
-    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
-    async fn get_block_transctions(
+    async fn get_block_transactions(
         &self,
         block_number: i64,
     ) -> Result<Vec<Transaction>, Pin<Box<dyn Error + Send + Sync>>>;
@@ -44,18 +65,6 @@ pub trait Storage: Send {
         &self,
         hash: String,
     ) -> Result<Transaction, Pin<Box<dyn Error + Send + Sync>>>;
-
-    async fn create_token_transfers_tables(
-        &mut self,
-        tokens: HashMap<String, String>,
-    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
-
-    async fn add_token_transfers(
-        &mut self,
-        table: String,
-        token_transfers: Vec<TokenTransfer>,
-    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
-
     async fn get_token_transfers(
         &self,
         token_address: String,
@@ -73,6 +82,4 @@ pub trait Storage: Send {
         address: String,
         transfer_type: TransferType,
     ) -> Result<Vec<TokenTransfer>, Pin<Box<dyn Error + Send + Sync>>>;
-
-    async fn prepare_db(&mut self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
 }

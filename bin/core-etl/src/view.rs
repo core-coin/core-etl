@@ -39,24 +39,16 @@ impl ViewArgs {
     pub async fn exec(
         &self,
         _config: Config,
-        storage: Arc<Mutex<dyn Storage>>,
+        storage: Arc<dyn Storage>,
     ) -> Result<(), Pin<Box<dyn std::error::Error + Send + Sync>>> {
         match &self.sub {
             ViewSubcommands::Block {
                 group: BlockGroup { number, hash },
             } => {
                 let block = if let Some(block_number) = number {
-                    storage
-                        .lock()
-                        .await
-                        .get_block_by_number(*block_number)
-                        .await?
+                    storage.get_block_by_number(*block_number).await?
                 } else {
-                    storage
-                        .lock()
-                        .await
-                        .get_block_by_hash(hash.clone().unwrap())
-                        .await?
+                    storage.get_block_by_hash(hash.clone().unwrap()).await?
                 };
                 info!("Requested block:\n {:#?}", block);
                 Ok(())
@@ -65,16 +57,10 @@ impl ViewArgs {
                 group: TransactionGroup { block_number, hash },
             } => {
                 if let Some(block_number) = block_number {
-                    let txs = storage
-                        .lock()
-                        .await
-                        .get_block_transctions(*block_number)
-                        .await?;
+                    let txs = storage.get_block_transactions(*block_number).await?;
                     info!("Requested transactions: {:#?}", txs);
                 } else {
                     let tx = storage
-                        .lock()
-                        .await
                         .get_transaction_by_hash(hash.clone().unwrap())
                         .await?;
                     info!("Requested transaction: {:#?}", tx);
@@ -91,8 +77,6 @@ impl ViewArgs {
             } => {
                 if let Some(address) = token_address {
                     let transfers = storage
-                        .lock()
-                        .await
                         .get_token_transfers(address.clone(), from.clone(), to.clone())
                         .await?;
                     info!("Requested token transfers: {:#?}", transfers);
@@ -100,8 +84,6 @@ impl ViewArgs {
                 }
                 if let Some(from) = from {
                     let transfers = storage
-                        .lock()
-                        .await
                         .get_address_token_transfers(from.to_string(), types::TransferType::From)
                         .await?;
                     info!("Requested token transfers: {:#?}", transfers);
@@ -109,8 +91,6 @@ impl ViewArgs {
                 }
                 if let Some(to) = to {
                     let transfers = storage
-                        .lock()
-                        .await
                         .get_address_token_transfers(to.to_string(), types::TransferType::To)
                         .await?;
                     info!("Requested token transfers: {:#?}", transfers);

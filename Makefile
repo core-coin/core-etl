@@ -1,0 +1,57 @@
+# Variables
+CORE_ETL_FLAGS ?= -r ws://go-core:8546 -s /data/data.sqld/dbs/default/data
+CORE_ETL_EXPORT_FLAGS ?= -c 3600
+GO_CORE_FLAGS ?= --ws --ws.addr 0.0.0.0
+
+# Targets
+.PHONY: build up down clean 
+
+clean:
+	@echo "Cleaning up core-etl.log, sqlite3.db and db.db"
+	@rm -f core-etl.log
+	@rm -f sqlite3.db sqlite3.db-shm sqlite3.db-wal sqlite3_dump.sql
+	@rm -f db.db db.db-shm db.db-wal db_dump.sql
+
+# Build Docker images
+build:
+	docker-compose build
+
+# Initialize database mount that is used both by core-etl and libsql-server
+init:
+	@echo "Initializing database mount"
+	docker-compose -f docker-compose-init.yml up  -d
+	@sleep 3
+	docker-compose -f docker-compose-init.yml down
+# Builds, (re)creates, starts, and attaches to containers for a service
+up:
+	GO_CORE_FLAGS="$(GO_CORE_FLAGS)" CORE_ETL_FLAGS="$(CORE_ETL_FLAGS)" CORE_ETL_EXPORT_FLAGS="$(CORE_ETL_EXPORT_FLAGS)" docker-compose up -d
+
+# Stops and removes containers, networks, volumes, and images created by docker-compose up
+down:
+	docker-compose down
+
+# Stops running containers without removing them. The containers can be restarted with make start
+stop:
+	docker-compose stop
+
+# Starts existing containers that were stopped
+start:
+	docker-compose start
+
+# Clean shared volume
+clean-volume:
+	@echo "Cleaning up libsql database volume"
+	@sudo rm -rf data
+	
+
+# # Run Go-core
+# run-go-core:
+# 	docker-compose run go-core gocore $(GO_CORE_FLAGS)
+
+# # Run Core-etl with optional flags
+# run-core-etl:
+# 	docker-compose run core-etl /usr/local/bin/core-etl $(CORE_ETL_FLAGS) export $(CORE_ETL_EXPORT_FLAGS)
+
+# # Run libsql-server
+# run-libsql-server:
+# 	docker-compose run libsql-server

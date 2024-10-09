@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -8,10 +8,15 @@ pub struct Config {
     /// Block number from which to start the export
     pub block_number: i64,
 
-    /// Whether to continue syncing from the last block in the database
-    /// This has precedence over the block_number field
-    pub continue_sync: bool,
-
     /// Watch token transfers. Provide a token type and address to watch
-    pub watch_tokens: Option<HashMap<String, String>>,
+    pub watch_tokens: HashMap<String, HashSet<String>>,
+
+    /// Filter transactions by address
+    pub address_filter: Vec<String>,
+
+    /// How long to retain data in the database
+    pub retention_duration: i64,
+
+    /// How often to run the cleanup task
+    pub cleanup_interval: i64,
 }

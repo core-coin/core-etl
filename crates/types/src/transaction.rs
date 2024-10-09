@@ -1,8 +1,9 @@
 use atoms_rpc_types::Transaction as AtomsTrasaction;
 use base_primitives::{hex::ToHexExt, B256};
+use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-#[derive(Debug, FromRow, Clone)]
+#[derive(Debug, FromRow, Clone, Serialize, Deserialize)]
 pub struct Transaction {
     pub hash: String,
     pub nonce: String,

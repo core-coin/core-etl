@@ -1,0 +1,10 @@
+# This file is used to start libsql-server for the first time so it will initialize all necessary files.
+version: '3.8'
+
+services:
+  libsql-server-init:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    container_name: libsql-server-init
+    volumes:
+      - ./data/sqlite:/var/lib/sqld
+    entrypoint: ["sh", "-c", "sqld"]

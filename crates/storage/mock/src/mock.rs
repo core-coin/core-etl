@@ -1,5 +1,11 @@
 use async_trait::async_trait;
-use std::{error::Error, fmt::Error as fmt_err, pin::Pin};
+use std::{
+    collections::HashSet,
+    error::Error,
+    fmt::Error as fmt_err,
+    ops::{Deref, DerefMut},
+    pin::Pin,
+};
 use storage::Storage;
 use types::{Block, TokenTransfer, Transaction, TransferType};
 
@@ -20,20 +26,7 @@ impl MockStorage {
 
 #[async_trait]
 impl Storage for MockStorage {
-    async fn prepare_db(&mut self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
-        Ok(())
-    }
-
-    async fn add_block(&mut self, block: Block) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
-        self.blocks.push(block);
-        Ok(())
-    }
-
-    async fn add_block_with_replace(
-        &mut self,
-        block: Block,
-    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
-        self.blocks.push(block);
+    async fn prepare_db(&self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         Ok(())
     }
 
@@ -84,20 +77,14 @@ impl Storage for MockStorage {
     }
 
     async fn update_blocks_to_matured(
-        &mut self,
+        &self,
         _block_number: i64,
     ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         Ok(())
     }
 
-    async fn add_transactions(
-        &mut self,
-        _transactions: Vec<Transaction>,
-    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
-        Ok(())
-    }
 
-    async fn get_block_transctions(
+    async fn get_block_transactions(
         &self,
         _block_number: i64,
     ) -> Result<Vec<Transaction>, Pin<Box<dyn Error + Send + Sync>>> {
@@ -112,16 +99,8 @@ impl Storage for MockStorage {
     }
 
     async fn create_token_transfers_tables(
-        &mut self,
-        _tokens: std::collections::HashMap<String, String>,
-    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
-        Ok(())
-    }
-
-    async fn add_token_transfers(
-        &mut self,
-        table: String,
-        token_transfer: Vec<TokenTransfer>,
+        &self,
+        _tokens: std::collections::HashMap<String, HashSet<String>>,
     ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         Ok(())
     }
@@ -148,5 +127,47 @@ impl Storage for MockStorage {
         transfer_type: TransferType,
     ) -> Result<Vec<TokenTransfer>, Pin<Box<dyn Error + Send + Sync>>> {
         Ok(vec![])
+    }
+
+    // async fn add_blocks(
+    //     &mut self,
+    //     blocks: Vec<Block>,
+    // ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+    //     self.blocks.extend(blocks);
+    //     Ok(())
+    // }
+
+    async fn create_indexes(&self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+
+    async fn clean_block_data(
+        &self,
+        _block_number: i64,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+
+    async fn insert_blocks_with_txs_and_token_transfers(
+        &self,
+        _insert_all: bool,
+        _blocks: &mut Vec<Block>,
+        _transactions: &mut Vec<Transaction>,
+        _token_transfers: &mut std::collections::HashMap<String, Vec<TokenTransfer>>,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        Ok(())
+    }
+
+    async fn start_cleanup_task(
+        &self,
+        _interval: tokio::time::Duration,
+        _retention_duration: tokio::time::Duration,
+    ) {
     }
 }

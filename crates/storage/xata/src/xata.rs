@@ -1,156 +1,138 @@
-use async_trait::async_trait;
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
-use sqlx::{migrate::MigrateDatabase, sqlite::SqlitePoolOptions, Acquire, Row, Sqlite, SqlitePool};
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
-    fmt::format,
-    ops::{Deref, DerefMut},
     pin::Pin,
-    result,
 };
-use storage::Storage;
-use tokio::time::{self, sleep, Duration};
-use tracing::{debug, error, info};
-use types::{token_transfer, transaction, Block, TokenTransfer, Transaction, TransferType};
 
-type Result<T> = std::result::Result<T, Pin<Box<dyn Error + Send + Sync>>>;
+use async_trait::async_trait;
+use chrono::{TimeZone, Utc};
+use sqlx::{postgres::PgPoolOptions, PgPool, Row};
+use storage::Storage;
+use tokio::time::{self, Duration};
+use tracing::{debug, error};
+use types::{Block, TokenTransfer, Transaction, TransferType};
+
+use crate::error::XataStorageError;
 
 #[derive(Debug, Clone)]
-pub struct Sqlite3Storage {
-    pool: SqlitePool,
-    tables_prefix: String,
-    modules: Vec<String>,
+pub struct XataStorage {
+    pub db_dsn: String,
+    pub pool: PgPool,
+    pub tables_prefix: String,
+    pub modules: Vec<String>,
 }
 
-impl Sqlite3Storage {
-    pub async fn new(db_dsn: String, tables_prefix: String, modules: Vec<String>) -> Result<Self> {
-        Self::create_db(db_dsn.clone()).await?;
-
-        let pool = SqlitePoolOptions::new()
-            .max_connections(10)
+impl XataStorage {
+    pub async fn new(
+        db_dsn: String,
+        tables_prefix: String,
+        modules: Vec<String>,
+    ) -> Result<Self, sqlx::Error> {
+        let pool = PgPoolOptions::new()
+            .max_connections(10) // Adjust the number of connections as needed
             .connect(&db_dsn)
-            .await
-            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+            .await?;
+
         Ok(Self {
+            db_dsn,
             pool,
             tables_prefix,
             modules,
         })
     }
 
-    async fn create_db(db_url: String) -> Result<()> {
-        if !Sqlite::database_exists(&db_url).await.unwrap_or(false) {
-            debug!("Creating database {}", db_url);
-            Sqlite::create_database(&db_url)
-                .await
-                .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
-        } else {
-            debug!("Database already exists");
-        }
-        Ok(())
-    }
-
-    pub fn get_db(&self) -> &SqlitePool {
-        &self.pool
-    }
-}
-
-impl Sqlite3Storage {
-    /// Migrates the database.
-    async fn migrate_db(&self) -> Result<()> {
-        debug!("Migrating database");
+    pub async fn migrate(&self) -> Result<(), sqlx::Error> {
+        debug!("Migrating database tables");
         let block_hash_foreign_key = if self.modules.contains(&"blocks".to_string()) {
             format!(",
                 CONSTRAINT fk_{0}_block_hash FOREIGN KEY (block_hash) REFERENCES {0}_blocks(hash) ON DELETE CASCADE ON UPDATE CASCADE", self.tables_prefix)
         } else {
             "".to_string()
         };
-        let queries = vec![
-            format!(
-                "CREATE TABLE IF NOT EXISTS {}_blocks (
-                number INTEGER PRIMARY KEY NOT NULL,
-                hash TEXT UNIQUE,
-                parent_hash TEXT,
-                nonce TEXT,
-                sha3_uncles TEXT,
+        let create_blocks_table = format!(
+            r#"
+            CREATE TABLE IF NOT EXISTS {}_blocks (
+                number BIGINT PRIMARY KEY,
+                hash VARCHAR(64),
+                parent_hash VARCHAR(64),
+                nonce VARCHAR(64),
+                sha3_uncles VARCHAR(64),
                 logs_bloom TEXT,
-                transactions_root TEXT,
-                state_root TEXT,
-                receipts_root TEXT,
-                miner TEXT,
-                difficulty TEXT,
-                total_difficulty TEXT,
+                transactions_root VARCHAR(64),
+                state_root VARCHAR(64),
+                receipts_root VARCHAR(64),
+                miner VARCHAR(44),
+                difficulty VARCHAR(64),
+                total_difficulty VARCHAR(64),
                 extra_data TEXT,
-                energy_limit INTEGER,
-                energy_used INTEGER,
-                timestamp INTEGER,
-                transaction_count INTEGER,
-                matured INTEGER,
+                energy_limit BIGINT,
+                energy_used BIGINT,
+                timestamp BIGINT,
+                transaction_count BIGINT,
+                matured BIGINT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );",
-                self.tables_prefix
-            ),
-            format!(
-                "CREATE TABLE IF NOT EXISTS {0}_transactions (
-                hash TEXT PRIMARY KEY NOT NULL,
-                nonce TEXT,
-                block_hash TEXT,
-                block_number INTEGER,
-                transaction_index INTEGER,
-                from_addr TEXT,
-                to_addr TEXT,
-                value TEXT,
-                energy TEXT,
-                energy_price TEXT,
+            );
+        "#,
+            self.tables_prefix
+        );
+
+        let create_transactions_table = format!(
+            r#"
+            CREATE TABLE IF NOT EXISTS {0}_transactions (
+                hash VARCHAR(64) PRIMARY KEY,
+                nonce VARCHAR(64),
+                block_hash VARCHAR(64),
+                block_number BIGINT,
+                transaction_index BIGINT,
+                from_addr VARCHAR(44),
+                to_addr VARCHAR(44),
+                value VARCHAR(64),
+                energy VARCHAR(64),
+                energy_price VARCHAR(64),
                 input TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP 
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 {1}
-            );",
-                self.tables_prefix, block_hash_foreign_key
-            ),
-        ];
+            );
+        "#,
+            self.tables_prefix, block_hash_foreign_key
+        );
 
-        for query in queries {
-            sqlx::query(&query)
-                .execute(self.get_db())
-                .await
-                .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
-        }
-
+        sqlx::query(&create_blocks_table)
+            .execute(&self.pool)
+            .await?;
+        sqlx::query(&create_transactions_table)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 }
 
 #[async_trait]
-impl Storage for Sqlite3Storage {
-    /// Checks if the database exists. If not, it will be created. Then, the connection to the database will be established and the database will be migrated.
-    async fn prepare_db(&self) -> Result<()> {
-        self.migrate_db().await?;
+impl Storage for XataStorage {
+    async fn prepare_db(&self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        self.migrate().await.map_err(XataStorageError::from)?;
         self.create_indexes().await?;
         Ok(())
     }
 
-    async fn create_indexes(&self) -> Result<()> {
-        let queries = vec![
+    async fn create_indexes(&self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        let indexes = vec![
             format!("CREATE INDEX IF NOT EXISTS idx_{0}_blocks_hash ON {0}_blocks(hash);", self.tables_prefix),
-            format!("CREATE INDEX IF NOT EXISTS idx_{0}_blocks_number ON {0}_blocks(number);", self.tables_prefix),
             format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_block_hash ON {0}_transactions(block_hash);", self.tables_prefix),
             format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_from_addr ON {0}_transactions(from_addr);", self.tables_prefix),
             format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_to_addr ON {0}_transactions(to_addr);", self.tables_prefix),
         ];
 
-        for query in queries {
-            sqlx::query(&query)
-                .execute(self.get_db())
+        for index in indexes {
+            sqlx::query(&index)
+                .execute(&self.pool)
                 .await
-                .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+                .map_err(XataStorageError::from)?;
         }
-
         Ok(())
     }
 
-    async fn get_latest_block_number(&self) -> Result<i64> {
+    async fn get_latest_block_number(&self) -> Result<i64, Pin<Box<dyn Error + Send + Sync>>> {
         let result = sqlx::query_as::<_, Block>(
             format!(
                 "SELECT * FROM {}_blocks ORDER BY number DESC LIMIT 1",
@@ -180,9 +162,12 @@ impl Storage for Sqlite3Storage {
                         // fetch block number from any token transfers table
                         let stmt = sqlx::query(
                             format!(
-                                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{}_%_transfers'", self.tables_prefix).as_str(),
+                                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '{}_%_transfers';",
+                                self.tables_prefix
+                            )
+                            .as_str(),
                         ).fetch_all(&self.pool).await.map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
-                        let table_name = stmt.first().map(|row| row.get::<String, _>("name"));
+                        let table_name = stmt.first().map(|row| row.get::<String, _>("table_name"));
                         match table_name {
                             Some(table_name) => {
                                 let result = sqlx::query_as::<_, TokenTransfer>(
@@ -210,18 +195,22 @@ impl Storage for Sqlite3Storage {
         }
     }
 
-    async fn update_blocks_to_matured(&self, block_height: i64) -> Result<()> {
+    async fn update_blocks_to_matured(
+        &self,
+        block_height: i64,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         let result = sqlx::query(
             format!(
-                "UPDATE {}_blocks SET matured = 1 WHERE number <= ? AND matured = 0",
+                "UPDATE {}_blocks SET matured = 1 WHERE number <= $1 AND matured = 0",
                 self.tables_prefix
             )
             .as_str(),
         )
         .bind(block_height)
-        .execute(self.get_db())
+        .execute(&self.pool)
         .await
         .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
         debug!("Updated matured blocks: {:?}", result.rows_affected());
         Ok(())
     }
@@ -229,7 +218,7 @@ impl Storage for Sqlite3Storage {
     async fn create_token_transfers_tables(
         &self,
         tokens: HashMap<String, HashSet<String>>,
-    ) -> Result<()> {
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         for (token, address_set) in tokens {
             for address in address_set {
                 let table_name = format!(
@@ -243,73 +232,82 @@ impl Storage for Sqlite3Storage {
                 } else {
                     "".to_string()
                 };
-                let query = format!(
+                let create_table_query = format!(
                     "CREATE TABLE IF NOT EXISTS {table_name} (
-                    block_number INTEGER NOT NULL,
-                    from_addr TEXT NOT NULL,
-                    to_addr TEXT NOT NULL,
-                    value TEXT NOT NULL,
-                    tx_hash TEXT,
-                    address TEXT NOT NULL,
-                    transfer_index INTEGER NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    id SERIAL PRIMARY KEY,
+                    block_number BIGINT,
+                    from_addr VARCHAR(44) NOT NULL,
+                    to_addr VARCHAR(44) NOT NULL,
+                    value VARCHAR(64) NOT NULL,
+                    tx_hash VARCHAR(64),
+                    address VARCHAR(44) NOT NULL,
+                    transfer_index BIGINT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (tx_hash, transfer_index)
                     {0}
                 );",
                     tx_hash_foreign_key
                 );
-                sqlx::query(&query)
-                    .execute(self.get_db())
+
+                let result = sqlx::query(&create_table_query)
+                    .execute(&self.pool)
                     .await
                     .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
-                debug!("Created token transfers table: {}", table_name);
+
+                debug!(
+                    "Create {:?} token transfers table result: {:?}",
+                    table_name, result
+                );
             }
         }
         Ok(())
     }
 
-    async fn clean_block_data(&self, block_number: i64) -> Result<()> {
+    async fn clean_block_data(
+        &self,
+        block_number: i64,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         let mut tx = self
-            .get_db()
+            .pool
             .begin()
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
 
-        sqlx::query(format!("DELETE FROM {}_blocks WHERE number = ?", self.tables_prefix).as_str())
-            .bind(block_number)
+        let delete_blocks_query = format!(
+            "DELETE FROM {}_blocks WHERE number = {}",
+            self.tables_prefix, block_number
+        );
+        sqlx::query(&delete_blocks_query)
             .execute(&mut tx)
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
 
-        sqlx::query(
-            format!(
-                "DELETE FROM {}_transactions WHERE block_number = ?",
-                self.tables_prefix
-            )
-            .as_str(),
-        )
-        .bind(block_number)
-        .execute(&mut tx)
-        .await
-        .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+        let delete_txs_query = format!(
+            "DELETE FROM {}_transactions WHERE block_number = {}",
+            self.tables_prefix, block_number
+        );
+        sqlx::query(&delete_txs_query)
+            .execute(&mut tx)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
 
         let stmt = sqlx::query(
-            format!(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{}_%_transfers'",
-                self.tables_prefix
+                format!("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '{}_%_transfers';", self.tables_prefix).as_str(),
             )
-            .as_str(),
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
-        let mut table_names: Vec<String> = stmt
+        let table_names: Vec<String> = stmt
             .iter()
-            .map(|row| row.get::<String, _>("name"))
+            .map(|row| row.get::<String, _>("table_name"))
             .collect();
         for table in table_names {
-            sqlx::query(format!("DELETE FROM {} WHERE block_number = ?", table).as_str())
-                .bind(block_number)
+            let delete_transfers_query = format!(
+                "DELETE FROM {} WHERE block_number = {}",
+                table, block_number
+            );
+            sqlx::query(&delete_transfers_query)
                 .execute(&mut tx)
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
@@ -328,10 +326,10 @@ impl Storage for Sqlite3Storage {
         blocks: &mut Vec<Block>,
         transactions: &mut Vec<Transaction>,
         token_transfers: &mut HashMap<String, Vec<TokenTransfer>>,
-    ) -> Result<()> {
-        if blocks.len() > 750 || transactions.len() > 750 || insert_all {
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        if blocks.len() > 500 || transactions.len() > 500 || insert_all {
             let mut tx = self
-                .get_db()
+                .pool
                 .begin()
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
@@ -345,10 +343,9 @@ impl Storage for Sqlite3Storage {
                         let created_at = Utc.timestamp_opt(block.timestamp, 0).unwrap().format("%Y-%m-%d %H:%M:%S").to_string();
                         timestamp_map.insert(&block.hash, created_at.clone()); // Save timestamp for use in transactions
                         format!(
-                            "({}, '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', {}, {}, {}, {}, {}, '{}')",
-                            block.number, block.hash, block.parent_hash, block.nonce, block.sha3_uncles, block.logs_bloom, block.transactions_root, block.state_root, block.receipts_root, block.miner, block.difficulty, block.total_difficulty, block.extra_data, block.energy_limit, block.energy_used, block.timestamp, block.transaction_count, block.matured, created_at
-                        )
-                    }).collect::<Vec<_>>().join(", ")
+                        "({}, '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', {}, {}, {}, {}, {}, '{}')",
+                        block.number, block.hash, block.parent_hash, block.nonce, block.sha3_uncles, block.logs_bloom, block.transactions_root, block.state_root, block.receipts_root, block.miner, block.difficulty, block.total_difficulty, block.extra_data, block.energy_limit, block.energy_used, block.timestamp, block.transaction_count, block.matured, created_at
+                    )}).collect::<Vec<_>>().join(", ")
                 );
                 if self.modules.contains(&"blocks".to_string()) {
                     sqlx::query(&query)
@@ -363,9 +360,9 @@ impl Storage for Sqlite3Storage {
                 let query = format!(
                     "INSERT INTO {}_transactions (hash, nonce, block_hash, block_number, transaction_index, from_addr, to_addr, value, energy, energy_price, input, created_at) VALUES {}",
                     self.tables_prefix,
-                    transactions.iter().map(|tx| {
+                    transactions.iter().map(|tx|{
                         timestamp_map.insert(&tx.hash, timestamp_map.get(&tx.block_hash).unwrap().to_string()); // Save timestamp for use in token transfers
-                        block_number_map.insert(&tx.hash, tx.block_number); // save block number so we can set block number in token transfers
+                        block_number_map.insert(&tx.hash, tx.block_number); // Save block number for use in token transfers
                         format!(
                         "('{}', '{}', '{}', {}, {}, '{}', '{}', '{}', '{}', '{}', '{}', '{}')",
                         tx.hash, tx.nonce, tx.block_hash, tx.block_number, tx.transaction_index, tx.from, tx.to, tx.value, tx.energy, tx.energy_price, tx.input, timestamp_map.get(&tx.block_hash).unwrap()
@@ -387,8 +384,8 @@ impl Storage for Sqlite3Storage {
                         self.tables_prefix,
                         table_name,
                         transfers.iter().map(|tt| format!(
-                            "({},'{}', '{}', '{}', '{}', '{}', {}, '{}')",
-                            block_number_map.get(&tt.tx_hash).unwrap(), tt.from, tt.to, tt.value, tt.tx_hash, tt.address, tt.index, timestamp_map.get(&tt.tx_hash).unwrap()
+                            "({}, '{}', '{}', '{}', '{}', '{}', {}, '{}')",
+                            block_number_map.get(&tt.tx_hash).unwrap(),  tt.from, tt.to, tt.value, tt.tx_hash, tt.address, tt.index, timestamp_map.get(&tt.tx_hash).unwrap()
                         )).collect::<Vec<_>>().join(", ")
                     );
                     sqlx::query(&query)
@@ -403,7 +400,6 @@ impl Storage for Sqlite3Storage {
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
             timestamp_map.clear();
-            block_number_map.clear();
             blocks.clear();
             transactions.clear();
             token_transfers.values_mut().for_each(|v| v.clear());
@@ -420,10 +416,10 @@ impl Storage for Sqlite3Storage {
                 interval.tick().await;
                 let cutoff =
                     chrono::Utc::now() - chrono::Duration::from_std(retention_duration).unwrap();
-                let cutoff_datetime = cutoff.format("%Y-%m-%d %H:%M:%S").to_string();
+                let cutoff_timestamp = cutoff.timestamp();
 
                 let stmt = sqlx::query(format!(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{}_%_transfers'", tables_prefix).as_str(),
+                    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '{}_%_transfers';", tables_prefix).as_str(),
                 )
                 .fetch_all(&pool)
                 .await
@@ -439,17 +435,18 @@ impl Storage for Sqlite3Storage {
                 let mut table_names: Vec<String> = stmt
                     .unwrap()
                     .iter()
-                    .map(|row| row.get::<String, _>("name"))
+                    .map(|row| row.get::<String, _>("table_name"))
                     .collect();
 
                 table_names.push(format!("{}_blocks", tables_prefix));
                 table_names.push(format!("{}_transactions", tables_prefix));
 
                 for table in table_names {
-                    let delete_query = format!("DELETE FROM {} WHERE created_at < ?", table);
+                    let delete_query =
+                        format!("DELETE FROM {} WHERE created_at < to_timestamp($1)", table);
 
                     let res = sqlx::query(&delete_query)
-                        .bind(&cutoff_datetime)
+                        .bind(cutoff_timestamp)
                         .execute(&pool)
                         .await;
                     if let Err(e) = res {
@@ -473,16 +470,23 @@ impl Storage for Sqlite3Storage {
         token_address: String,
         from: Option<String>,
         to: Option<String>,
-    ) -> Result<Vec<TokenTransfer>> {
+    ) -> Result<Vec<TokenTransfer>, Pin<Box<dyn Error + Send + Sync>>> {
         let selector = &token_address[..8];
         let prefix = self.tables_prefix.clone();
-        let stmt = sqlx::query(&format!(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{prefix}_%_{selector}_transfers'"
-        ))
-        .fetch_all(self.get_db())
-        .await .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+        let stmt = sqlx::query(
+            format!(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '{prefix}_%_{selector}_transfers'"
+            )
+            .as_str(),
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
-        let table_name: String = stmt.first().map(|row| row.get("name")).unwrap();
+        let table_name: String = stmt
+            .first()
+            .map(|row| row.get::<String, _>("table_name"))
+            .unwrap();
 
         let mut query = format!("SELECT * FROM {table_name} WHERE 1 = 1");
         if let Some(from) = from {
@@ -493,42 +497,44 @@ impl Storage for Sqlite3Storage {
         }
 
         let token_transfers = sqlx::query_as::<_, TokenTransfer>(&query)
-            .fetch_all(self.get_db())
+            .fetch_all(&self.pool)
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
         Ok(token_transfers)
     }
 
-    async fn get_transaction_token_transfers(&self, tx_hash: String) -> Result<Vec<TokenTransfer>> {
+    async fn get_transaction_token_transfers(
+        &self,
+        tx_hash: String,
+    ) -> Result<Vec<TokenTransfer>, Pin<Box<dyn Error + Send + Sync>>> {
         let stmt = sqlx::query(
-            format!(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{}_%_transfers'",
-                self.tables_prefix
-            )
-            .as_str(),
+            format!("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '{}_%_transfers';", self.tables_prefix).as_str(),
         )
-        .fetch_all(self.get_db())
+        .fetch_all(&self.pool)
         .await
-        .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
-        let table_names: Vec<String> = stmt.iter().map(|row| row.get("name")).collect();
-
-        let query = table_names
+        let table_names: Vec<String> = stmt
             .iter()
-            .map(|table| {
-                format!(
-                    "SELECT from_addr, to_addr, value, tx_hash, address FROM {} WHERE tx_hash = ?",
-                    table
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(" UNION ALL ");
+            .map(|row| row.get::<String, _>("table_name"))
+            .collect();
+
+        let mut query_parts = Vec::new();
+        for table in &table_names {
+            query_parts.push(format!(
+                "SELECT from_addr, to_addr, value, tx_hash, address FROM {} WHERE tx_hash = $1",
+                table
+            ));
+        }
+        let query = query_parts.join(" UNION ALL ");
 
         let token_transfers = sqlx::query_as::<_, TokenTransfer>(&query)
             .bind(tx_hash)
-            .fetch_all(self.get_db())
+            .fetch_all(&self.pool)
             .await
-            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+
         Ok(token_transfers)
     }
 
@@ -536,129 +542,147 @@ impl Storage for Sqlite3Storage {
         &self,
         address: String,
         transfer_type: TransferType,
-    ) -> Result<Vec<TokenTransfer>> {
-        let stmt = sqlx::query(
-            format!(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{}_%_transfers'",
-                self.tables_prefix
-            )
-            .as_str(),
+    ) -> Result<Vec<TokenTransfer>, Pin<Box<dyn Error + Send + Sync>>> {
+        let stmt = sqlx::query( format!(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '{}_%_transfers';", self.tables_prefix).as_str(),
         )
-        .fetch_all(self.get_db())
+        .fetch_all(&self.pool)
         .await
-        .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
-        let table_names: Vec<String> = stmt.iter().map(|row| row.get("name")).collect();
-
-        let query = table_names
+        let table_names: Vec<String> = stmt
             .iter()
-            .map(|table| {
-                let condition = match transfer_type {
-                    TransferType::From => format!("from_addr = '{}'", address),
-                    TransferType::To => format!("to_addr = '{}'", address),
-                    TransferType::All => {
-                        format!("from_addr = '{}' OR to_addr = '{}'", address, address)
-                    }
-                };
-                format!("SELECT * FROM {} WHERE {}", table, condition)
-            })
-            .collect::<Vec<_>>()
-            .join(" UNION ALL ");
+            .map(|row| row.get::<String, _>("table_name"))
+            .collect();
+
+        let mut query_parts = Vec::new();
+        for table in &table_names {
+            let mut subquery = format!("SELECT * FROM {} WHERE ", table);
+            match transfer_type {
+                TransferType::From => subquery += &format!("from_addr = '{}'", address),
+                TransferType::To => subquery += &format!("to_addr = '{}'", address),
+                TransferType::All => {
+                    subquery += &format!("from_addr = '{}' OR to_addr = '{}'", address, address)
+                }
+            }
+            query_parts.push(subquery);
+        }
+        let query = query_parts.join(" UNION ALL ");
 
         let token_transfers = sqlx::query_as::<_, TokenTransfer>(&query)
-            .fetch_all(self.get_db())
+            .bind(address)
+            .fetch_all(&self.pool)
             .await
-            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+
         Ok(token_transfers)
     }
 
-    async fn get_block_transactions(&self, block_number: i64) -> Result<Vec<Transaction>> {
+    async fn get_block_transactions(
+        &self,
+        block_number: i64,
+    ) -> Result<Vec<Transaction>, Pin<Box<dyn Error + Send + Sync>>> {
         let transactions = sqlx::query_as::<_, Transaction>(
             format!(
-                "SELECT * FROM {}_transactions WHERE block_number = ?",
+                "SELECT * FROM {}_transactions WHERE block_number = $1",
                 self.tables_prefix
             )
             .as_str(),
         )
         .bind(block_number)
-        .fetch_all(self.get_db())
+        .fetch_all(&self.pool)
         .await
         .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
         Ok(transactions)
     }
 
-    async fn get_transaction_by_hash(&self, hash: String) -> Result<Transaction> {
+    async fn get_transaction_by_hash(
+        &self,
+        hash: String,
+    ) -> Result<Transaction, Pin<Box<dyn Error + Send + Sync>>> {
         let transaction = sqlx::query_as::<_, Transaction>(
             format!(
-                "SELECT * FROM {}_transactions WHERE hash = ?",
+                "SELECT * FROM {}_transactions WHERE hash = $1",
                 self.tables_prefix
             )
             .as_str(),
         )
         .bind(hash)
-        .fetch_one(self.get_db())
+        .fetch_one(&self.pool)
         .await
         .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
         Ok(transaction)
     }
 
-    async fn get_all_blocks(&self) -> Result<Vec<Block>> {
+    async fn get_all_blocks(&self) -> Result<Vec<Block>, Pin<Box<dyn Error + Send + Sync>>> {
         let blocks = sqlx::query_as::<_, Block>(
             format!("SELECT * FROM {}_blocks", self.tables_prefix).as_str(),
         )
-        .fetch_all(self.get_db())
+        .fetch_all(&self.pool)
         .await
         .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
         Ok(blocks)
     }
 
-    /// Returns a list of blocks in the specified range.
-    /// if end is negative, it will return all blocks from start to the latest block.
-    async fn get_blocks_in_range(&self, start: i64, end: i64) -> Result<Vec<Block>> {
-        let mut query = format!(
-            "SELECT * FROM {}_blocks WHERE number >= ? AND number <= ?",
-            self.tables_prefix
-        );
-        if end < 0 {
-            query = format!(
-                "SELECT * FROM {}_blocks WHERE number >= ?",
+    async fn get_blocks_in_range(
+        &self,
+        start: i64,
+        end: i64,
+    ) -> Result<Vec<Block>, Pin<Box<dyn Error + Send + Sync>>> {
+        let query = if end < 0 {
+            format!(
+                "SELECT * FROM {}_blocks WHERE number >= $1",
                 self.tables_prefix
-            );
-        }
+            )
+        } else {
+            format!(
+                "SELECT * FROM {}_blocks WHERE number >= $1 AND number <= $2",
+                self.tables_prefix
+            )
+        };
+
         let blocks = sqlx::query_as::<_, Block>(&query)
             .bind(start)
             .bind(end)
-            .fetch_all(self.get_db())
+            .fetch_all(&self.pool)
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
         Ok(blocks)
     }
 
-    async fn get_block_by_number(&self, block_number: i64) -> Result<Block> {
+    async fn get_block_by_number(
+        &self,
+        block_number: i64,
+    ) -> Result<Block, Pin<Box<dyn Error + Send + Sync>>> {
         let block = sqlx::query_as::<_, Block>(
             format!(
-                "SELECT * FROM {}_blocks WHERE number = ?",
+                "SELECT * FROM {}_blocks WHERE number = $1",
                 self.tables_prefix
             )
             .as_str(),
         )
         .bind(block_number)
-        .fetch_one(self.get_db())
+        .fetch_one(&self.pool)
         .await
         .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
         Ok(block)
     }
 
-    async fn get_block_by_hash(&self, block_hash: String) -> Result<Block> {
+    async fn get_block_by_hash(
+        &self,
+        block_hash: String,
+    ) -> Result<Block, Pin<Box<dyn Error + Send + Sync>>> {
         let block = sqlx::query_as::<_, Block>(
             format!(
-                "SELECT * FROM {}_blocks WHERE hash = '?'",
+                "SELECT * FROM {}_blocks WHERE hash = $1",
                 self.tables_prefix
             )
             .as_str(),
         )
         .bind(block_hash)
-        .fetch_one(self.get_db())
+        .fetch_one(&self.pool)
         .await
         .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
         Ok(block)

@@ -14,3 +14,5 @@ publish = true
 
 types.workspace = true
 async-trait.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
