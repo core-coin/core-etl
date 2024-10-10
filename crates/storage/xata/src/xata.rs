@@ -243,6 +243,7 @@ impl Storage for XataStorage {
                     address VARCHAR(44) NOT NULL,
                     transfer_index BIGINT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    status BIGINT DEFAULT 0,
                     UNIQUE (tx_hash, transfer_index)
                     {0}
                 );",
@@ -380,12 +381,12 @@ impl Storage for XataStorage {
             for (table_name, transfers) in token_transfers.clone() {
                 if !transfers.is_empty() && self.modules.contains(&"token_transfers".to_string()) {
                     let query = format!(
-                        "INSERT INTO {}_{} (block_number, from_addr, to_addr, value, tx_hash, address, transfer_index, created_at) VALUES {}",
+                        "INSERT INTO {}_{} (block_number, from_addr, to_addr, value, tx_hash, address, transfer_index, created_at, status) VALUES {}",
                         self.tables_prefix,
                         table_name,
                         transfers.iter().map(|tt| format!(
-                            "({}, '{}', '{}', '{}', '{}', '{}', {}, '{}')",
-                            block_number_map.get(&tt.tx_hash).unwrap(),  tt.from, tt.to, tt.value, tt.tx_hash, tt.address, tt.index, timestamp_map.get(&tt.tx_hash).unwrap()
+                            "({}, '{}', '{}', '{}', '{}', '{}', {}, '{}', {})",
+                            block_number_map.get(&tt.tx_hash).unwrap(),  tt.from, tt.to, tt.value, tt.tx_hash, tt.address, tt.index, timestamp_map.get(&tt.tx_hash).unwrap(), tt.status
                         )).collect::<Vec<_>>().join(", ")
                     );
                     sqlx::query(&query)

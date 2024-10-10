@@ -252,7 +252,8 @@ impl Storage for Sqlite3Storage {
                     tx_hash TEXT,
                     address TEXT NOT NULL,
                     transfer_index INTEGER NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    status INTEGER DEFAULT 0
                     {0}
                 );",
                     tx_hash_foreign_key
@@ -383,12 +384,12 @@ impl Storage for Sqlite3Storage {
             for (table_name, transfers) in token_transfers.clone() {
                 if !transfers.is_empty() && self.modules.contains(&"token_transfers".to_string()) {
                     let query = format!(
-                        "INSERT INTO {}_{} (block_number, from_addr, to_addr, value, tx_hash, address, transfer_index, created_at) VALUES {}",
+                        "INSERT INTO {}_{} (block_number, from_addr, to_addr, value, tx_hash, address, transfer_index, created_at, status) VALUES {}",
                         self.tables_prefix,
                         table_name,
                         transfers.iter().map(|tt| format!(
-                            "({},'{}', '{}', '{}', '{}', '{}', {}, '{}')",
-                            block_number_map.get(&tt.tx_hash).unwrap(), tt.from, tt.to, tt.value, tt.tx_hash, tt.address, tt.index, timestamp_map.get(&tt.tx_hash).unwrap()
+                            "({},'{}', '{}', '{}', '{}', '{}', {}, '{}', {})",
+                            block_number_map.get(&tt.tx_hash).unwrap(), tt.from, tt.to, tt.value, tt.tx_hash, tt.address, tt.index, timestamp_map.get(&tt.tx_hash).unwrap(), tt.status
                         )).collect::<Vec<_>>().join(", ")
                     );
                     sqlx::query(&query)
