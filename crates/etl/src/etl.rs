@@ -139,14 +139,7 @@ impl ETLWorker {
                 .await?;
             }
 
-            let mut clone = self.clone();
-            spawn(async move {
-                if let Err(e) = clone.update_blocks_to_matured(block_height - 5).await {
-                    error!("Failed to mature blocks: {:?}", e);
-                } else {
-                    info!("Blocks till {:?} are matured", block_height - 5);
-                }
-            });
+            self.update_blocks_to_matured(block_height - 5).await?;
         }
 
         Ok(())
@@ -231,6 +224,9 @@ impl ETLWorker {
     async fn sync_old_blocks(&mut self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         Box::pin(async move {
             let latest_provider_block = self.provider_get_block(BlockNumberOrTag::Latest).await?;
+            self.update_blocks_to_matured(latest_provider_block.number - 5)
+                .await?;
+
             // already synced
             if self.last_saved_block == latest_provider_block.number
             // checked all blocks but the last one do not have data which needs to be stored
@@ -246,14 +242,6 @@ impl ETLWorker {
             }
 
             let mut log_counter = block_to_load;
-
-            let mut clone = self.clone();
-
-            spawn(async move {
-                clone
-                    .update_blocks_to_matured(latest_provider_block.number - 5)
-                    .await
-            });
 
             info!(
                 "Syncing stale blocks from {} to {}",
@@ -339,6 +327,10 @@ impl ETLWorker {
                     continue;
                 }
                 let transfer_data = sc.extract_transfer_data(tx.clone().from, tx.clone().input);
+                let receipt = self
+                    .provider
+                    .get_transaction_receipt(tx.clone().hash)
+                    .await?;
                 let processor_token_transfers: Vec<TokenTransfer> = transfer_data
                     .into_iter()
                     .map(|(index, from, to, value)| TokenTransfer {
@@ -349,6 +341,7 @@ impl ETLWorker {
                         tx_hash: tx.hash.clone(),
                         address: sc.get_address(),
                         index: index as i64,
+                        status: receipt.status().then(|| 1).unwrap_or(0),
                     })
                     .collect();
                 if !processor_token_transfers.is_empty() {

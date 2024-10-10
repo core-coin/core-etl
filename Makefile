@@ -1,6 +1,6 @@
 # Variables
-CORE_ETL_FLAGS ?= -r ws://go-core:8546 -s /data/data.sqld/dbs/default/data
-CORE_ETL_EXPORT_FLAGS ?= -c 3600
+CORE_ETL_FLAGS ?= -s /data/data.sqld/dbs/default/data
+CORE_ETL_EXPORT_FLAGS ?= -w="ctn"
 GO_CORE_FLAGS ?= --ws --ws.addr 0.0.0.0
 
 # Targets
@@ -23,8 +23,14 @@ init:
 	@sleep 3
 	docker-compose -f docker-compose-init.yml down
 # Builds, (re)creates, starts, and attaches to containers for a service
-up:
-	GO_CORE_FLAGS="$(GO_CORE_FLAGS)" CORE_ETL_FLAGS="$(CORE_ETL_FLAGS)" CORE_ETL_EXPORT_FLAGS="$(CORE_ETL_EXPORT_FLAGS)" docker-compose up -d
+# This runs the additional go-core container 
+sync-local:
+	GO_CORE_FLAGS="$(GO_CORE_FLAGS)" CORE_ETL_FLAGS="-r ws://go-core:8546 $(CORE_ETL_FLAGS)" CORE_ETL_EXPORT_FLAGS="$(CORE_ETL_EXPORT_FLAGS)" docker-compose -f docker-compose-local.yml up -d
+
+# Builds, (re)creates, starts, and attaches to containers for a service
+# This runs the additional go-core container 
+sync-remote:
+	CORE_ETL_FLAGS="-n mainnet $(CORE_ETL_FLAGS)" CORE_ETL_EXPORT_FLAGS="$(CORE_ETL_EXPORT_FLAGS)" docker-compose -f docker-compose-remote.yml up -d
 
 # Stops and removes containers, networks, volumes, and images created by docker-compose up
 down:

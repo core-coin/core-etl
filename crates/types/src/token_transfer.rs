@@ -13,4 +13,5 @@ pub struct TokenTransfer {
     pub address: String,
     #[sqlx(rename = "transfer_index")]
     pub index: i64,
+    pub status: i64,
 }

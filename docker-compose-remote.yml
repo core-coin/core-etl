@@ -13,19 +13,7 @@ services:
     environment:
       - SQLD_HTTP_LISTEN_ADDR=0.0.0.0:8081
     entrypoint: ["sh", "-c", "sqld"]
-
-  go-core:
-    image: ghcr.io/core-coin/go-core:latest
-    container_name: go-core
-    environment:
-      - GO_CORE_FLAGS=${GO_CORE_FLAGS}
-    ports:
-      - "8546:8546" # WebSocket port
-    networks:
-      - core-network
-    entrypoint: ["sh", "-c", "gocore ${GO_CORE_FLAGS}"]
-    depends_on:
-      - libsql-server
+    restart: always
 
   core-etl:
     build:
@@ -33,16 +21,10 @@ services:
       dockerfile: Dockerfile
     container_name: core-etl
     depends_on:
-      - go-core
+      - libsql-server
     volumes:
       - ./data/sqlite:/data
-    networks:
-      - core-network
     environment:
       - CORE_ETL_FLAGS=${CORE_ETL_FLAGS}
       - CORE_ETL_EXPORT_FLAGS=${CORE_ETL_EXPORT_FLAGS}
     entrypoint: ["sh", "-c", "/usr/local/bin/core-etl ${CORE_ETL_FLAGS} export ${CORE_ETL_EXPORT_FLAGS}"]
-
-networks:
-  core-network:
-    driver: bridge
