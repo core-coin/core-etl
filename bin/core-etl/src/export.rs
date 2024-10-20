@@ -37,6 +37,11 @@ pub struct ExportArgs {
     /// How often to run the cleanup task. Value is in seconds
     /// Cleanup task will remove data older than retention_duration
     pub cleanup_interval: i64,
+
+    #[clap(short, long, env)]
+    /// Lazy mode. Do not sync while node is syncing
+    /// This is useful for nodes that take a long time to sync
+    pub lazy: bool,
 }
 
 impl ExportArgs {
@@ -61,6 +66,7 @@ impl ExportArgs {
         config.retention_duration = self.retention_duration;
         config.cleanup_interval = self.cleanup_interval;
         config.address_filter = self.address_filter.clone().unwrap_or_default();
+        config.lazy = self.lazy;
 
         if let Some(watch_tokens) = &self.watch_tokens {
             config.watch_tokens = self.parse_watch_tokens(network_id, watch_tokens);

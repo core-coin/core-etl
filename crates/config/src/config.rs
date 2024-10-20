@@ -19,4 +19,7 @@ pub struct Config {
 
     /// How often to run the cleanup task
     pub cleanup_interval: i64,
+
+    /// Lazy mode. Do not sync while node is syncing
+    pub lazy: bool,
 }

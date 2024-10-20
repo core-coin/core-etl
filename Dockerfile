@@ -19,7 +19,7 @@ WORKDIR /usr/src/app
 # Copy the built binary from the builder stage
 COPY --from=builder /usr/src/app/target/release/core-etl /usr/local/bin/core-etl
 
-# Expose the SQLite database file as read-only if the "-s" flag is used
+# Expose the SQLite database file
 VOLUME ["/data"]
 
 # Run the core-etl application

@@ -1,4 +1,4 @@
-use atoms_rpc_types::BlockNumberOrTag;
+use atoms_rpc_types::{BlockNumberOrTag, SyncStatus};
 use config::Config;
 use contracts::SmartContract;
 use futures::future::join_all;
@@ -91,6 +91,27 @@ impl ETLWorker {
                 .start_cleanup_task(cleanup_interval, retention_duration)
                 .await;
         }
+        
+        // If lazy mode is enabled, wait until the node is synced
+        if self.config.lazy {
+            loop {
+                let syncing = self.provider.syncing().await.unwrap();
+                match syncing {
+                    SyncStatus::Info(syncing) => {
+                        info!(
+                            "Waiting for the node to sync. Current block: {}, highest block: {}",
+                            syncing.current_block, syncing.highest_block
+                        );
+                        sleep(Duration::from_secs(60)).await;
+                    }
+                    SyncStatus::None => {
+                        info!("Node syncing is finished");
+                        break;
+                    }
+                }
+            }
+        }
+
         info!("ETLWorker is running");
         self.sync_old_blocks().await?;
         info!("Stale blocks syncing is finished");

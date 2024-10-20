@@ -14,7 +14,7 @@ clean:
 
 # Build Docker images
 build:
-	docker-compose build
+	docker-compose -f docker-compose-local.yml build
 
 # Initialize database mount that is used both by core-etl and libsql-server
 init:
@@ -34,15 +34,15 @@ sync-remote:
 
 # Stops and removes containers, networks, volumes, and images created by docker-compose up
 down:
-	docker-compose down
+	docker-compose -f docker-compose-local.yml down
 
 # Stops running containers without removing them. The containers can be restarted with make start
 stop:
-	docker-compose stop
+	docker-compose -f docker-compose-local.yml stop
 
 # Starts existing containers that were stopped
 start:
-	docker-compose start
+	docker-compose -f docker-compose-local.yml start
 
 # Clean shared volume
 clean-volume:

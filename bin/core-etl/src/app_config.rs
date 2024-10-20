@@ -12,6 +12,7 @@ impl Args {
             retention_duration: 0,
             cleanup_interval: 0,
             address_filter: Default::default(),
+            lazy: false,
         };
 
         if self.rpc_url.is_some() {

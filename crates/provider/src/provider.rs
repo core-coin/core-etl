@@ -1,7 +1,7 @@
 use atoms_provider::{network::Ethereum, Provider as AtomsProvider, RootProvider};
 use atoms_pubsub::{PubSubFrontend, Subscription};
 use atoms_rpc_client::{RpcClient, WsConnect};
-use atoms_rpc_types::{BlockNumberOrTag, TransactionReceipt};
+use atoms_rpc_types::{BlockNumberOrTag, SyncStatus, TransactionReceipt};
 use base_primitives::{hex::FromHex, B256};
 use std::{
     error::Error,
@@ -91,5 +91,10 @@ impl Provider {
     pub async fn get_network_id(&self) -> Result<u64, Pin<Box<dyn Error + Send + Sync>>> {
         let network_id = self.root.get_chain_id().await.unwrap();
         Ok(network_id)
+    }
+
+    pub async fn syncing(&self) -> Result<SyncStatus, Pin<Box<dyn Error + Send + Sync>>> {
+        let status = self.root.syncing().await.unwrap();
+        Ok(status)
     }
 }
