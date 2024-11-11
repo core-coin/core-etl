@@ -1,7 +1,7 @@
 # Variables
 CORE_ETL_FLAGS ?= -s /data/data.sqld/dbs/default/data
-CORE_ETL_EXPORT_FLAGS ?= -w="ctn"
-GO_CORE_FLAGS ?= --ws --ws.addr 0.0.0.0
+CORE_ETL_EXPORT_FLAGS ?= -w="ctn" -l
+GO_CORE_FLAGS ?= --ws --ws.addr 0.0.0.0 --syncmode fast --cache=128 --snapshot=false
 
 # Targets
 .PHONY: build up down clean 

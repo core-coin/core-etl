@@ -133,11 +133,12 @@ impl Storage for Sqlite3Storage {
 
     async fn create_indexes(&self) -> Result<()> {
         let queries = vec![
-            format!("CREATE INDEX IF NOT EXISTS idx_{0}_blocks_hash ON {0}_blocks(hash);", self.tables_prefix),
-            format!("CREATE INDEX IF NOT EXISTS idx_{0}_blocks_number ON {0}_blocks(number);", self.tables_prefix),
-            format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_block_hash ON {0}_transactions(block_hash);", self.tables_prefix),
-            format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_from_addr ON {0}_transactions(from_addr);", self.tables_prefix),
-            format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_to_addr ON {0}_transactions(to_addr);", self.tables_prefix),
+            format!("CREATE INDEX IF NOT EXISTS idx_{0}_blocks_hash ON {0}_blocks (hash);", self.tables_prefix),
+            format!("CREATE INDEX IF NOT EXISTS idx_{0}_blocks_number ON {0}_blocks (number);", self.tables_prefix),
+            format!("CREATE INDEX IF NOT EXISTS idx_{0}_blocks_matured ON {0}_blocks (matured);", self.tables_prefix),
+            format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_block_hash ON {0}_transactions (block_hash);", self.tables_prefix),
+            format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_from_addr ON {0}_transactions (from_addr);", self.tables_prefix),
+            format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_to_addr ON {0}_transactions (to_addr);", self.tables_prefix),
         ];
 
         for query in queries {

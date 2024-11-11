@@ -6,13 +6,13 @@ services:
     container_name: libsql-server
     volumes:
       - ./data/sqlite/data.sqld/dbs/default/data:/var/lib/sqld/data.sqld/dbs/default/data:ro
-      - ./data/sqlite/data.sqld/dbs/default/data-shm:/var/lib/sqld/data.sqld/dbs/default/data-shm
-      - ./data/sqlite/data.sqld/dbs/default/data-wal:/var/lib/sqld/data.sqld/dbs/default/data-wal
+      - ./data/sqlite/data.sqld/dbs/default/data-shm:/var/lib/sqld/data.sqld/dbs/default/data-shm:rw
+      - ./data/sqlite/data.sqld/dbs/default/data-wal:/var/lib/sqld/data.sqld/dbs/default/data-wal:rw
     ports:
       - "8081:8081" # Expose port 8081 on the host machine
     environment:
       - SQLD_HTTP_LISTEN_ADDR=0.0.0.0:8081
-    entrypoint: ["sh", "-c", "sqld"]
+    entrypoint: [ "sh", "-c", "sqld" ]
     restart: always
 
   go-core:
@@ -24,9 +24,10 @@ services:
       - "8546:8546" # WebSocket port
     networks:
       - core-network
-    entrypoint: ["sh", "-c", "gocore ${GO_CORE_FLAGS}"]
+    entrypoint: [ "sh", "-c", "gocore ${GO_CORE_FLAGS}" ]
     depends_on:
       - libsql-server
+    restart: always
 
   core-etl:
     build:
@@ -42,7 +43,8 @@ services:
     environment:
       - CORE_ETL_FLAGS=${CORE_ETL_FLAGS}
       - CORE_ETL_EXPORT_FLAGS=${CORE_ETL_EXPORT_FLAGS}
-    entrypoint: ["sh", "-c", "/usr/local/bin/core-etl ${CORE_ETL_FLAGS} export ${CORE_ETL_EXPORT_FLAGS}"]
+    entrypoint: [ "sh", "-c", "/usr/local/bin/core-etl ${CORE_ETL_FLAGS} export ${CORE_ETL_EXPORT_FLAGS}" ]
+    restart: always
 
 networks:
   core-network:
