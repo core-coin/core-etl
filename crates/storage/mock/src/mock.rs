@@ -3,7 +3,6 @@ use std::{
     collections::HashSet,
     error::Error,
     fmt::Error as fmt_err,
-    ops::{Deref, DerefMut},
     pin::Pin,
 };
 use storage::Storage;
@@ -124,7 +123,7 @@ impl Storage for MockStorage {
     async fn get_address_token_transfers(
         &self,
         _address: String,
-        transfer_type: TransferType,
+        _transfer_type: TransferType,
     ) -> Result<Vec<TokenTransfer>, Pin<Box<dyn Error + Send + Sync>>> {
         Ok(vec![])
     }

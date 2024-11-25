@@ -1,3 +1,4 @@
+use crate::ETLError;
 use atoms_rpc_types::{BlockNumberOrTag, SyncStatus};
 use config::Config;
 use contracts::SmartContract;
@@ -5,18 +6,14 @@ use futures::future::join_all;
 use futures::stream::StreamExt;
 use provider::Provider;
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::pin::Pin;
 use std::{error::Error, sync::Arc};
 use storage::Storage;
-use tokio::sync::Mutex;
-use tokio::task::{self, JoinHandle};
+use tokio::spawn;
+use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
-use tokio::{spawn, sync::MutexGuard};
-use tracing::{error, info};
+use tracing::info;
 use types::{Block, TokenTransfer, Transaction};
-
-use crate::ETLError;
 
 pub struct ETLWorker {
     pub config: Config,
@@ -91,7 +88,7 @@ impl ETLWorker {
                 .start_cleanup_task(cleanup_interval, retention_duration)
                 .await;
         }
-        
+
         // If lazy mode is enabled, wait until the node is synced
         if self.config.lazy {
             loop {
@@ -283,8 +280,8 @@ impl ETLWorker {
                     >,
                 > = vec![];
 
-                for _ in 0..10 {
-                    let clone = self.clone();
+                for _ in 0..self.config.threads {
+                    let clone: ETLWorker = self.clone();
                     let block_number = block_to_load;
                     tasks.push(spawn(async move {
                         clone.fetch_and_process_block(block_number).await
@@ -344,10 +341,10 @@ impl ETLWorker {
         let mut transfers = HashMap::new();
         for tx in transactions {
             for sc in &self.smart_contracts_processors {
-                if tx.to != sc.get_address() || !sc.check_if_transfer(tx.clone().input) {
+                if tx.to != sc.get_address() || !sc.check_if_call(tx.clone().input) {
                     continue;
                 }
-                let transfer_data = sc.extract_transfer_data(tx.clone().from, tx.clone().input);
+                let transfer_data = sc.extract_call_data(tx.clone().from, tx.clone().input);
                 let receipt = self
                     .provider
                     .get_transaction_receipt(tx.clone().hash)
@@ -375,12 +372,6 @@ impl ETLWorker {
         }
 
         Ok(transfers)
-    }
-
-    async fn storage_get_latest_block_number(
-        &self,
-    ) -> Result<i64, Pin<Box<dyn Error + Sync + Send>>> {
-        self.storage.get_latest_block_number().await
     }
 
     async fn provider_get_block(

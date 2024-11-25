@@ -8,7 +8,6 @@ members = [
     "crates/storage/storage",
     "crates/storage/mock",
     "crates/storage/sqlite3",
-    "crates/storage/d1",
     "crates/storage/xata",
     "crates/contracts/contracts",
     "crates/contracts/cbc20"
@@ -41,7 +40,6 @@ types = {path = "./crates/types" }
 storage = {path = "./crates/storage/storage"}
 mock_storage = {path = "./crates/storage/mock"}
 sqlite3_storage = {path = "./crates/storage/sqlite3"}
-d1_storage = {path = "./crates/storage/d1"}
 xata_storage = {path = "./crates/storage/xata"}
 provider = {path = "./crates/provider"}
 contracts = {path = "./crates/contracts/contracts"}

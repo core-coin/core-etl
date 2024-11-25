@@ -13,6 +13,7 @@ impl Args {
             cleanup_interval: 0,
             address_filter: Default::default(),
             lazy: false,
+            threads: 3,
         };
 
         if self.rpc_url.is_some() {
@@ -21,6 +22,10 @@ impl Args {
 
         if self.network.is_some() {
             config.rpc_url = self.network.clone().unwrap().url();
+        }
+
+        if self.threads.is_some() {
+            config.threads = self.threads.unwrap();
         }
 
         config

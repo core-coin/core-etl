@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 use std::marker::Send;
-use std::ops::DerefMut;
 use std::{error::Error, pin::Pin};
 use tokio::time::Duration;
-use types::{token_transfer, Block, TokenTransfer, Transaction, TransferType};
+use types::{Block, TokenTransfer, Transaction, TransferType};
 
 #[async_trait]
 pub trait Storage: Send + Sync {

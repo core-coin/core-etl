@@ -22,4 +22,7 @@ pub struct Config {
 
     /// Lazy mode. Do not sync while node is syncing
     pub lazy: bool,
+
+    /// Number of threads to use for the sync
+    pub threads: usize,
 }

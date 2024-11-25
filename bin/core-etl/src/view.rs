@@ -2,7 +2,6 @@ use clap::{Parser, Subcommand};
 use config::Config;
 use std::{pin::Pin, sync::Arc};
 use storage::Storage;
-use tokio::sync::Mutex;
 use tracing::info;
 #[derive(Parser, Debug)]
 pub struct ViewArgs {

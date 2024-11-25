@@ -48,16 +48,3 @@ start:
 clean-volume:
 	@echo "Cleaning up libsql database volume"
 	@sudo rm -rf data
-	
-
-# # Run Go-core
-# run-go-core:
-# 	docker-compose run go-core gocore $(GO_CORE_FLAGS)
-
-# # Run Core-etl with optional flags
-# run-core-etl:
-# 	docker-compose run core-etl /usr/local/bin/core-etl $(CORE_ETL_FLAGS) export $(CORE_ETL_EXPORT_FLAGS)
-
-# # Run libsql-server
-# run-libsql-server:
-# 	docker-compose run libsql-server
