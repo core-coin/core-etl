@@ -68,6 +68,7 @@ make sync-local
 | `-x, --xata-db-dsn <XATA_DB_DSN>` | Xata database DSN where the blockchain data is saved. | `XATA_DB_DSN` | None |
 | `-t, --tables-prefix <TABLES_PREFIX>` | Prefix for the tables in the database. Useful when running multiple instances of the ETL. | `TABLES_PREFIX` | `etl` |
 | `-m, --modules <MODULES>...` | Which data will be stored in the database. | `MODULES` | `blocks,transactions,token_transfers` |
+| `--threads <THREADS>` | Number of working threads during the initial sync | `THREADS` | `3` |
 | `-h, --help` | Print help information. | None | None |
 | `-V, --version` | Print version information. | None | None |
 
@@ -165,10 +166,10 @@ To export blockchain data to SQLite3 storage:
 ./core-etl -s ./sqlite3.db export
 ```
 
-Export only transaction data for Devin network to SQLite3 storage
+Export only transaction data for Devin network to SQLite3 storage. Use 10 parallel threads to sync data faster
 
 ```
-./core-etl -n devin -s ./sqlite3.db -m transactions export
+./core-etl -n devin -s ./sqlite3.db -m transactions --threads 10 export
 ```
 
 Export transactions and CTN transfers to Postgres with cleanup interval 1h and retention period 24h
