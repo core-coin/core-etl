@@ -5,7 +5,6 @@ use provider::Provider;
 use std::sync::Arc;
 use std::{fmt::Error as fmt_err, pin::Pin};
 use storage::Storage;
-use tokio::sync::Mutex;
 use tracing::{error, info};
 
 #[derive(Parser, Debug)]

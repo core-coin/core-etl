@@ -1,7 +1,6 @@
 use crate::constants::NAME;
-use crate::{cbc20, CBC20_NAME};
 use contracts::SmartContract;
-use std::{i64, vec};
+use std::vec;
 
 #[derive(Debug, Clone)]
 pub struct Cbc20 {
@@ -23,7 +22,7 @@ impl Cbc20 {
 }
 
 impl SmartContract for Cbc20 {
-    fn check_if_transfer(&self, input: String) -> bool {
+    fn check_if_call(&self, input: String) -> bool {
         for selector in &self.transfer_selectors {
             if input.starts_with(selector) {
                 return true;
@@ -32,7 +31,7 @@ impl SmartContract for Cbc20 {
         return false;
     }
 
-    fn extract_transfer_data(
+    fn extract_call_data(
         &self,
         sender: String,
         input: String,

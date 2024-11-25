@@ -1,18 +1,15 @@
 use async_trait::async_trait;
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
-use sqlx::{migrate::MigrateDatabase, sqlite::SqlitePoolOptions, Acquire, Row, Sqlite, SqlitePool};
+use chrono::{TimeZone, Utc};
+use sqlx::{migrate::MigrateDatabase, sqlite::SqlitePoolOptions, Row, Sqlite, SqlitePool};
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
-    fmt::format,
-    ops::{Deref, DerefMut},
     pin::Pin,
-    result,
 };
 use storage::Storage;
-use tokio::time::{self, sleep, Duration};
-use tracing::{debug, error, info};
-use types::{token_transfer, transaction, Block, TokenTransfer, Transaction, TransferType};
+use tokio::time::{self, Duration};
+use tracing::{debug, error};
+use types::{Block, TokenTransfer, Transaction, TransferType};
 
 type Result<T> = std::result::Result<T, Pin<Box<dyn Error + Send + Sync>>>;
 
@@ -305,7 +302,7 @@ impl Storage for Sqlite3Storage {
         .await
         .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
-        let mut table_names: Vec<String> = stmt
+        let table_names: Vec<String> = stmt
             .iter()
             .map(|row| row.get::<String, _>("name"))
             .collect();

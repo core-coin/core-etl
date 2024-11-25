@@ -1,11 +1,9 @@
 use crate::Args;
-// use d1_storage::D1Storage;
 use mock_storage::MockStorage;
 use serde::Serialize;
 use sqlite3_storage::Sqlite3Storage;
 use std::sync::Arc;
 use storage::Storage;
-use tokio::sync::Mutex;
 use tracing::info;
 use xata_storage::XataStorage;
 
@@ -14,7 +12,6 @@ use xata_storage::XataStorage;
 pub enum StorageType {
     #[default]
     Sqlite3Storage,
-    // D1Storage,
     XataStorage,
     MockStorage,
 }
@@ -24,14 +21,6 @@ impl Args {
         info!("Storing data about: {:?}", self.modules.clone());
         match self.storage {
             StorageType::MockStorage => Arc::new(MockStorage::new()),
-            // StorageType::D1Storage => {
-            //     let d1 = D1Storage::new(
-            //         self.d1_db_name.as_ref().unwrap().to_string(),
-            //         self.cloudflare_api_token.as_ref().unwrap().to_string(),
-            //     );
-            //     d1.prepare_db().await.unwrap();
-            //     Arc::new(d1)
-            // }
             StorageType::Sqlite3Storage => {
                 if self.sqlite3_path.is_none() {
                     panic!("sqlite3_path is required for Sqlite3 Storage");

@@ -3,14 +3,12 @@ use std::{
     pin::Pin,
     sync::Arc,
 };
-use tokio::sync::Mutex;
 
 use clap::Parser;
 use config::Config;
 use provider::Provider;
 use storage::Storage;
 use tracing::{error, info};
-use types::network;
 
 #[derive(Parser, Debug)]
 pub struct ExportArgs {
