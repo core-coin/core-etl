@@ -1,13 +1,13 @@
 [package]
 authors = { workspace = true }
-description = "Xata connector for ETL"
+description = "Postgres connector for ETL"
 edition = { workspace = true }
 homepage = { workspace = true }
-keywords = ["core blockchain", "xcb", "etl", "xata-storage"]
+keywords = ["core blockchain", "xcb", "etl", "postgres-storage"]
 license = { workspace = true }
 repository = { workspace = true }
 version = { workspace = true }
-name = "xata_storage"
+name = "postgres_storage"
 publish = true
 
 [dependencies]

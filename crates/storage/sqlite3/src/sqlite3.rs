@@ -321,6 +321,67 @@ impl Storage for Sqlite3Storage {
         Ok(())
     }
 
+    async fn clean_last_blocks(&self, number: i64) -> Result<()> {
+        let mut tx = self
+            .get_db()
+            .begin()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
+        sqlx::query(
+            format!(
+                "DELETE FROM {}_blocks WHERE number > (SELECT MAX(number) FROM {}_blocks) - ?",
+                self.tables_prefix, self.tables_prefix
+            )
+            .as_str(),
+        )
+        .bind(number)
+        .execute(&mut tx)
+        .await
+        .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
+        sqlx::query(
+            format!(
+                "DELETE FROM {}_transactions WHERE block_number > (SELECT MAX(block_number) FROM {}_transactions) - ?",
+                self.tables_prefix, self.tables_prefix
+            )
+            .as_str(),
+        )
+        .bind(number)
+        .execute(&mut tx)
+        .await
+        .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
+        let stmt = sqlx::query(
+            format!(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '{}_%_transfers'",
+                self.tables_prefix
+            )
+            .as_str(),
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+
+        let table_names: Vec<String> = stmt
+            .iter()
+            .map(|row| row.get::<String, _>("name"))
+            .collect();
+        for table in table_names {
+            sqlx::query(format!("DELETE FROM {} WHERE block_number > (SELECT MAX(block_number) FROM {}) - ?", table, table).as_str())
+                .bind(number)
+                .execute(&mut tx)
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+        }
+
+        tx.commit()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
+        Ok(())
+    }
+
     async fn insert_blocks_with_txs_and_token_transfers(
         &self,
         insert_all: bool,

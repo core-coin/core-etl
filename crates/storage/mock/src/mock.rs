@@ -1,10 +1,5 @@
 use async_trait::async_trait;
-use std::{
-    collections::HashSet,
-    error::Error,
-    fmt::Error as fmt_err,
-    pin::Pin,
-};
+use std::{collections::HashSet, error::Error, fmt::Error as fmt_err, pin::Pin};
 use storage::Storage;
 use types::{Block, TokenTransfer, Transaction, TransferType};
 
@@ -82,7 +77,6 @@ impl Storage for MockStorage {
         Ok(())
     }
 
-
     async fn get_block_transactions(
         &self,
         _block_number: i64,
@@ -147,6 +141,13 @@ impl Storage for MockStorage {
         &self,
         _block_number: i64,
     ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>
+    where
+        Self: Sized,
+    {
+        Ok(())
+    }
+
+    async fn clean_last_blocks(&self, _number: i64) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>
     where
         Self: Sized,
     {

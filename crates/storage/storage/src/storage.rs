@@ -29,6 +29,9 @@ pub trait Storage: Send + Sync {
         &self,
         block_number: i64,
     ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
+    /// Remove last blocks data
+    async fn clean_last_blocks(&self, number: i64)
+        -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
     /// Insert blocks with transactions and token transfers
     async fn insert_blocks_with_txs_and_token_transfers(
         &self,

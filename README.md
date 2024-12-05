@@ -77,9 +77,9 @@ Flag | Description | Environment Variable | Default Value
 ---| --- | --- | ---
 `-r, --rpc-url <RPC_URL>` | URL of the RPC node that provides the blockchain data. | `RPC_URL` | wss://xcbws.coreblockchain.net
 `-n, --network <NETWORK>` | Network to sync data from (e.g., mainnet, devin, private). | `NETWORK` | Mainnet
-`--storage <STORAGE>` | Storage type for saving blockchain data (e.g., sqlite3-storage, xata-storage). | `STORAGE` | sqlite3-storage
+`--storage <STORAGE>` | Storage type for saving blockchain data (e.g., sqlite3-storage, postgres-storage). | `STORAGE` | sqlite3-storage
 `-s, --sqlite3-path <SQLITE3_PATH>` | Path to SQLite3 file where the blockchain data is saved. | `SQLITE3_PATH` | None
-`-x, --xata-db-dsn <XATA_DB_DSN>` | Xata database DSN where the blockchain data is saved. | `XATA_DB_DSN` | None
+`-p, --postgres-db-dsn <POSTGRES_DB_DSN>` | Postgres database DSN where the blockchain data is saved. | `POSTGRES_DB_DSN` | None
 `-t, --tables-prefix <TABLES_PREFIX>` | Prefix for the tables in the database. Useful when running multiple instances. | `TABLES_PREFIX` | etl
 `-m, --modules <MODULES>...` | Specify which data to store (e.g., blocks, transactions, token_transfers). | `MODULES` | blocks,transactions,token_transfers
 `--threads <THREADS>` | Number of working threads during the initial sync. | `THREADS` | 3
@@ -188,7 +188,7 @@ Export only transaction data for the Devin network to SQLite3 storage, using 10 
 Export transactions and CTN transfers to Postgres with a cleanup interval of 1 hour and retention period of 24 hours:
 
 ```bash
-./core-etl --storage xata-storage -x postgres://user:password@localhost:5432/dbname -m transactions,token_transfers export -w "ctn" -r 86400 -c 3600
+./core-etl --storage postgres-storage -p postgres://user:password@localhost:5432/dbname -m transactions,token_transfers export -w "ctn" -r 86400 -c 3600
 ```
 
 Export blocks and transactions using a local node, with the `filtered_etl` table prefix. Do not sync data until the node is synced. Also, filter transactions by address `cb22as..21`:

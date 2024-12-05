@@ -12,17 +12,17 @@ use tokio::time::{self, Duration};
 use tracing::{debug, error};
 use types::{Block, TokenTransfer, Transaction, TransferType};
 
-use crate::error::XataStorageError;
+use crate::error::PostgresStorageError;
 
 #[derive(Debug, Clone)]
-pub struct XataStorage {
+pub struct PostgresStorage {
     pub db_dsn: String,
     pub pool: PgPool,
     pub tables_prefix: String,
     pub modules: Vec<String>,
 }
 
-impl XataStorage {
+impl PostgresStorage {
     pub async fn new(
         db_dsn: String,
         tables_prefix: String,
@@ -108,9 +108,9 @@ impl XataStorage {
 }
 
 #[async_trait]
-impl Storage for XataStorage {
+impl Storage for PostgresStorage {
     async fn prepare_db(&self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
-        self.migrate().await.map_err(XataStorageError::from)?;
+        self.migrate().await.map_err(PostgresStorageError::from)?;
         self.create_indexes().await?;
         Ok(())
     }
@@ -129,7 +129,7 @@ impl Storage for XataStorage {
             sqlx::query(&index)
                 .execute(&self.pool)
                 .await
-                .map_err(XataStorageError::from)?;
+                .map_err(PostgresStorageError::from)?;
         }
         Ok(())
     }
@@ -309,6 +309,63 @@ impl Storage for XataStorage {
             let delete_transfers_query = format!(
                 "DELETE FROM {} WHERE block_number = {}",
                 table, block_number
+            );
+            sqlx::query(&delete_transfers_query)
+                .execute(&mut tx)
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+        }
+
+        tx.commit()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
+        Ok(())
+    }
+
+    async fn clean_last_blocks(
+        &self,
+        number: i64,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
+        let delete_blocks_query = format!(
+            "DELETE FROM {}_blocks WHERE number > (SELECT max(number) FROM {}_blocks) - {}",
+            self.tables_prefix, self.tables_prefix, number
+        );
+        sqlx::query(&delete_blocks_query)
+            .execute(&mut tx)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
+        let delete_txs_query = format!(
+            "DELETE FROM {}_transactions WHERE block_number > (SELECT max(block_number) FROM {}_transactions) - {}",
+            self.tables_prefix, self.tables_prefix, number
+        );
+        sqlx::query(&delete_txs_query)
+            .execute(&mut tx)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+
+        let stmt = sqlx::query(
+                format!("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '{}_%_transfers';", self.tables_prefix).as_str(),
+            )
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+
+        let table_names: Vec<String> = stmt
+            .iter()
+            .map(|row| row.get::<String, _>("table_name"))
+            .collect();
+        for table in table_names {
+            let delete_transfers_query = format!(
+                "DELETE FROM {} WHERE block_number > (SELECT max(block_number) FROM {}) - {}",
+                table, table, number
             );
             sqlx::query(&delete_transfers_query)
                 .execute(&mut tx)
