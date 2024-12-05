@@ -163,6 +163,14 @@ impl ETLWorker {
         Ok(())
     }
 
+    pub async fn cleanup_last_blocks(
+        &self,
+        blocks: i64,
+    ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        self.storage.clean_last_blocks(blocks).await?;
+        Ok(())
+    }
+
     async fn fetch_and_process_block(
         &self,
         block_number: i64,

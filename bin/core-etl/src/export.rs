@@ -51,10 +51,21 @@ impl ExportArgs {
     ) -> Result<(), Pin<Box<dyn std::error::Error + Sync + Send>>> {
         let network_id = provider.get_network_id().await.unwrap();
         let config = self.add_args(config, network_id);
-        let mut worker = etl::ETLWorker::new(config, storage, provider).await;
-        let res = worker.run().await;
-        if let Err(e) = res {
-            error!("Error in ETLWorker: {:?}", e);
+        let mut worker: etl::ETLWorker = etl::ETLWorker::new(config, storage, provider).await;
+        // Retry starting the worker 10 times if it fails
+        for i in 1..10 {
+            let res = worker.run().await;
+            if let Err(e) = res {
+                error!("Problem occured in ETL process: {:?}", e);
+                info!("Retry starting the worker: {}", i);
+                info!("Cleaning last 100 blocks in database and restarting process...");
+                let res = worker.cleanup_last_blocks(100).await;
+                if let Err(e) = res {
+                    error!("Problem occured in cleanup process: {:?}", e);
+                }
+            } else {
+                break;
+            }
         }
         Ok(())
     }

@@ -41,8 +41,8 @@ pub(crate) struct Args {
     pub sqlite3_path: Option<String>,
 
     #[clap(short, long, env)]
-    /// Xata database DSN where the blockchain data is saved
-    pub xata_db_dsn: Option<String>,
+    /// Postgres database DSN where the blockchain data is saved
+    pub postgres_db_dsn: Option<String>,
 
     #[clap(short, long, env, default_value = "etl")]
     /// Prefix for the tables in the database

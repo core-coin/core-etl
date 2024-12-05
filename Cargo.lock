@@ -948,6 +948,7 @@ dependencies = [
  "dotenvy",
  "etl",
  "mock_storage",
+ "postgres_storage",
  "provider",
  "serde",
  "serde_json",
@@ -958,7 +959,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "types",
- "xata_storage",
 ]
 
 [[package]]
@@ -2328,6 +2328,23 @@ name = "pkg-config"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "953ec861398dccce10c670dfeaf3ec4911ca479e9c02154b3a215178c5f566f2"
+
+[[package]]
+name = "postgres_storage"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "base-primitives",
+ "chrono",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "storage",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "types",
+]
 
 [[package]]
 name = "ppv-lite86"
@@ -3986,23 +4003,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05f360fc0b24296329c78fda852a1e9ae82de9cf7b27dae4b7f62f118f77b9ed"
 dependencies = [
  "tap",
-]
-
-[[package]]
-name = "xata_storage"
-version = "0.0.1"
-dependencies = [
- "async-trait",
- "base-primitives",
- "chrono",
- "serde",
- "serde_json",
- "sqlx",
- "storage",
- "thiserror",
- "tokio",
- "tracing",
- "types",
 ]
 
 [[package]]

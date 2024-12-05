@@ -1,18 +1,18 @@
 use crate::Args;
 use mock_storage::MockStorage;
+use postgres_storage::PostgresStorage;
 use serde::Serialize;
 use sqlite3_storage::Sqlite3Storage;
 use std::sync::Arc;
 use storage::Storage;
 use tracing::info;
-use xata_storage::XataStorage;
 
 #[derive(clap::ValueEnum, Clone, Default, Debug, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum StorageType {
     #[default]
     Sqlite3Storage,
-    XataStorage,
+    PostgresStorage,
     MockStorage,
 }
 
@@ -35,25 +35,25 @@ impl Args {
                 db.prepare_db().await.unwrap();
                 Arc::new(db)
             }
-            StorageType::XataStorage => {
-                if self.xata_db_dsn.is_none() {
-                    panic!("xata_db_dsn is required for Xata Storage");
+            StorageType::PostgresStorage => {
+                if self.postgres_db_dsn.is_none() {
+                    panic!("postgres_db_dsn is required for Postgres Storage");
                 }
-                let xata = XataStorage::new(
-                    self.xata_db_dsn.as_ref().unwrap().to_string(),
+                let postgres = PostgresStorage::new(
+                    self.postgres_db_dsn.as_ref().unwrap().to_string(),
                     self.tables_prefix.clone(),
                     self.modules.clone(),
                 )
                 .await;
-                if xata.is_err() {
+                if postgres.is_err() {
                     panic!(
-                        "Failed to connect to Xata Storage database: {:?}",
-                        xata.err()
+                        "Failed to connect to Postgres Storage database: {:?}",
+                        postgres.err()
                     );
                 }
-                let xata = xata.unwrap();
-                xata.prepare_db().await.unwrap();
-                Arc::new(xata)
+                let postgres = postgres.unwrap();
+                postgres.prepare_db().await.unwrap();
+                Arc::new(postgres)
             }
         }
     }
