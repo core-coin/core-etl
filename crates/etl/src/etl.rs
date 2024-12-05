@@ -71,16 +71,18 @@ impl ETLWorker {
             }
         }
 
-        let latest_db_block = etl.storage.get_latest_block_number().await.unwrap_or(0);
-        etl.last_saved_block = if latest_db_block != 0 {
-            latest_db_block // start from the latest block in the db
-        } else {
-            etl.config.block_number - 1 // -1 to start from the block_number
-        };
         etl
     }
 
     pub async fn run(&mut self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
+        self.last_checked_block = 0;
+        let latest_db_block = self.storage.get_latest_block_number().await.unwrap_or(0);
+        self.last_saved_block = if latest_db_block != 0 {
+            latest_db_block // start from the latest block in the db
+        } else {
+            self.config.block_number - 1 // -1 to start from the block_number
+        };
+
         if self.config.retention_duration > 0 {
             let retention_duration = Duration::from_secs(self.config.retention_duration as u64);
             let cleanup_interval = Duration::from_secs(self.config.cleanup_interval as u64);
