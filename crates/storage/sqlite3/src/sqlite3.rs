@@ -136,6 +136,8 @@ impl Storage for Sqlite3Storage {
             format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_block_hash ON {0}_transactions (block_hash);", self.tables_prefix),
             format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_from_addr ON {0}_transactions (from_addr);", self.tables_prefix),
             format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_to_addr ON {0}_transactions (to_addr);", self.tables_prefix),
+            format!("PRAGMA journal_mode = WAL;"),
+            format!("PRAGMA wal_checkpoint(FULL);"),
         ];
 
         for query in queries {
@@ -368,11 +370,17 @@ impl Storage for Sqlite3Storage {
             .map(|row| row.get::<String, _>("name"))
             .collect();
         for table in table_names {
-            sqlx::query(format!("DELETE FROM {} WHERE block_number > (SELECT MAX(block_number) FROM {}) - ?", table, table).as_str())
-                .bind(number)
-                .execute(&mut tx)
-                .await
-                .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
+            sqlx::query(
+                format!(
+                    "DELETE FROM {} WHERE block_number > (SELECT MAX(block_number) FROM {}) - ?",
+                    table, table
+                )
+                .as_str(),
+            )
+            .bind(number)
+            .execute(&mut tx)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
         }
 
         tx.commit()
