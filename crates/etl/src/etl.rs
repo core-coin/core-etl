@@ -126,6 +126,9 @@ impl ETLWorker {
             .take_while(|x| futures::future::ready(x.header.number.is_some()));
 
         while let Some(header) = stream.next().await {
+            if header.header.number.unwrap() <= self.last_saved_block.try_into().unwrap() {
+                continue;
+            }
             let block_height = header.header.number.unwrap() as i64;
             let (block, mut transactions, mut token_transfers) =
                 self.fetch_and_process_block(block_height).await?;
