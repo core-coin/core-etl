@@ -150,13 +150,13 @@ impl ETLWorker {
                     block.number
                 );
                 self.storage.clean_block_data(block.number).await?;
-                self.safe_insert(
-                    true,
-                    &mut vec![block],
-                    &mut transactions,
-                    &mut token_transfers,
-                )
-                .await?;
+
+                // On low memory devices cleaning will take some time
+                // and we can receive new blocks in the meantime
+                // so better to start syncning from the last saved block
+                self.last_checked_block = 0;
+                self.last_saved_block = self.storage.get_latest_block_number().await.unwrap_or(0);
+                self.sync_old_blocks().await?;
             }
 
             self.update_blocks_to_matured(block_height - 5).await?;
