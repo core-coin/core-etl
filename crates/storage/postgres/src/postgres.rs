@@ -30,6 +30,7 @@ impl PostgresStorage {
     ) -> Result<Self, sqlx::Error> {
         let pool = PgPoolOptions::new()
             .max_connections(10) // Adjust the number of connections as needed
+            .acquire_timeout(Duration::from_secs(60))
             .connect(&db_dsn)
             .await?;
 
@@ -44,8 +45,10 @@ impl PostgresStorage {
     pub async fn migrate(&self) -> Result<(), sqlx::Error> {
         debug!("Migrating database tables");
         let block_hash_foreign_key = if self.modules.contains(&"blocks".to_string()) {
-            format!(",
-                CONSTRAINT fk_{0}_block_hash FOREIGN KEY (block_hash) REFERENCES {0}_blocks(hash) ON DELETE CASCADE ON UPDATE CASCADE", self.tables_prefix)
+            format!(
+                "REFERENCES {0}_blocks(hash) ON DELETE CASCADE ON UPDATE CASCADE",
+                self.tables_prefix
+            )
         } else {
             "".to_string()
         };
@@ -53,7 +56,7 @@ impl PostgresStorage {
             r#"
             CREATE TABLE IF NOT EXISTS {}_blocks (
                 number BIGINT PRIMARY KEY,
-                hash VARCHAR(64),
+                hash VARCHAR(64) UNIQUE,
                 parent_hash VARCHAR(64),
                 nonce VARCHAR(64),
                 sha3_uncles VARCHAR(64),
@@ -81,7 +84,7 @@ impl PostgresStorage {
             CREATE TABLE IF NOT EXISTS {0}_transactions (
                 hash VARCHAR(64) PRIMARY KEY,
                 nonce VARCHAR(64),
-                block_hash VARCHAR(64),
+                block_hash VARCHAR(64) {1},
                 block_number BIGINT,
                 transaction_index BIGINT,
                 from_addr VARCHAR(44),
@@ -91,7 +94,6 @@ impl PostgresStorage {
                 energy_price VARCHAR(64),
                 input TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                {1}
             );
         "#,
             self.tables_prefix, block_hash_foreign_key
@@ -230,7 +232,7 @@ impl Storage for PostgresStorage {
                     &address[..8]
                 );
                 let tx_hash_foreign_key = if self.modules.contains(&"transactions".to_string()) {
-                    format!(", CONSTRAINT fk_{0}_tx_hash FOREIGN KEY (tx_hash) REFERENCES {0}_transactions(hash) ON DELETE CASCADE ON UPDATE CASCADE", self.tables_prefix)
+                    format!("REFERENCES {0}_transactions(hash) ON DELETE CASCADE ON UPDATE CASCADE", self.tables_prefix)
                 } else {
                     "".to_string()
                 };
@@ -241,13 +243,12 @@ impl Storage for PostgresStorage {
                     from_addr VARCHAR(44) NOT NULL,
                     to_addr VARCHAR(44) NOT NULL,
                     value VARCHAR(64) NOT NULL,
-                    tx_hash VARCHAR(64),
+                    tx_hash VARCHAR(64) {0},
                     address VARCHAR(44) NOT NULL,
                     transfer_index BIGINT NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     status BIGINT DEFAULT 0,
                     UNIQUE (tx_hash, transfer_index)
-                    {0}
                 );",
                     tx_hash_foreign_key
                 );

@@ -1,13 +1,11 @@
-version: '3.8'
-
 services:
   libsql-server:
     image: ghcr.io/tursodatabase/libsql-server:latest
     container_name: libsql-server
     volumes:
-      - ./data/sqlite/data.sqld/dbs/default/data:/var/lib/sqld/data.sqld/dbs/default/data:ro
-      - ./data/sqlite/data.sqld/dbs/default/data-shm:/var/lib/sqld/data.sqld/dbs/default/data-shm:rw
-      - ./data/sqlite/data.sqld/dbs/default/data-wal:/var/lib/sqld/data.sqld/dbs/default/data-wal:rw
+      - ./libsql_data/sqlite/data.sqld/dbs/default/data:/var/lib/sqld/data.sqld/dbs/default/data:ro
+      - ./libsql_data/sqlite/data.sqld/dbs/default/data-shm:/var/lib/sqld/data.sqld/dbs/default/data-shm:rw
+      - ./libsql_data/sqlite/data.sqld/dbs/default/data-wal:/var/lib/sqld/data.sqld/dbs/default/data-wal:rw
     ports:
       - "8081:8081" # Expose port 8081 on the host machine
     environment:
@@ -17,14 +15,15 @@ services:
 
   core-etl:
     build:
-      context: .
+      context: ./..
       dockerfile: Dockerfile
     container_name: core-etl
     depends_on:
       - libsql-server
     volumes:
-      - ./data/sqlite:/data
+      - ./libsql_data/sqlite:/libsql_data
     environment:
       - CORE_ETL_FLAGS=${CORE_ETL_FLAGS}
       - CORE_ETL_EXPORT_FLAGS=${CORE_ETL_EXPORT_FLAGS}
     entrypoint: [ "sh", "-c", "/usr/local/bin/core-etl ${CORE_ETL_FLAGS} export ${CORE_ETL_EXPORT_FLAGS}" ]
+    restart: always

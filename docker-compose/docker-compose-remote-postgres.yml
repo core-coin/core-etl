@@ -1,0 +1,31 @@
+
+services:
+  etl-postgres:
+    image: postgres
+    container_name: etl-postgres
+    environment:
+      POSTGRES_USER: etl_user
+      POSTGRES_PASSWORD: etl_password
+      POSTGRES_DB: etl_database
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+      - ../postgresql.conf:/etc/postgresql/postgresql.conf
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    network_mode: "host"
+    restart: always
+
+  core-etl:
+    build:
+      context: ./..
+      dockerfile: Dockerfile
+    container_name: core-etl
+    depends_on:
+      - etl-postgres
+    environment:
+      - CORE_ETL_FLAGS=${CORE_ETL_FLAGS}
+      - CORE_ETL_EXPORT_FLAGS=${CORE_ETL_EXPORT_FLAGS}
+    entrypoint: [ "sh", "-c", "/usr/local/bin/core-etl ${CORE_ETL_FLAGS} export ${CORE_ETL_EXPORT_FLAGS}" ]
+    network_mode: "host"
+    restart: always
