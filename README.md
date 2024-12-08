@@ -58,8 +58,8 @@ cd target/release
 Alternatively, use it inside a Docker container:
 
 ```bash
-make init
-make sync-local
+make init-libsql
+make sync-local-libsql
 ```
 
 ## Usage
@@ -101,19 +101,35 @@ Flag | Description | Environment Variable | Default Value
 
 The Makefile provides convenient commands for building, running, and managing the project.
 
+There are commands for two storage types: Postgres and Sqlite3
+
+Example how to setup ETL for PostgreSQL 
+```bash
+make build-postgres
+make sync-local-postgres
+```
+Same for Sqlite3 (Libsql)
+```bash
+make build-libsql
+make init-libsql
+make sync-local-libsql
+```
+
 #### Makefile Commands
+
+Instead of {storage} use postgres or libsql
 
 Command | Description
 --- | ---
-`make build` | Build the project.
-`make clean` | Clean up logs and database files.
-`make init` | Initialize the database mount.
-`make up` | Start services using Docker Compose.
-`make down` | Stop and remove services using Docker Compose.
-`make stop` | Stop running containers without removing them.
-`make start` | Start existing containers that were stopped.
-`make sync-local` | Sync SQLite database with a local node.
-`make sync-remote` | Sync SQLite database with a remote node.
+`make build-{storage}` | Build the project.
+`make clean-{storage}` | Clean up logs and database files.
+`make init-libsql` | Initialize the database mount. Works only for sqlite3 (libsql)
+`make up-{storage}` | Start services using Docker Compose.
+`make down-{storage}` | Stop and remove services using Docker Compose.
+`make stop-{storage}` | Stop running containers without removing them.
+`make start-{storage}` | Start existing containers that were stopped.
+`make sync-local-{storage}` | Sync database with a local node.
+`make sync-remote-{storage}` | Sync database with a remote node.
 
 ### Docker
 
@@ -138,15 +154,15 @@ Docker Compose can be used to manage multi-container Docker applications.
 #### Start Services (with local node)
 
 ```bash
-make init
-make sync-local
+make init-libsql
+make sync-local-libsql
 ```
 
 #### Start Services (using remote node)
 
 ```bash
-make init
-make sync-remote
+make init-libsql
+make sync-remote-libsql
 ```
 
 ## Configuration

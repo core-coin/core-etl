@@ -25,6 +25,10 @@ impl Args {
                 if self.sqlite3_path.is_none() {
                     panic!("sqlite3_path is required for Sqlite3 Storage");
                 }
+                info!(
+                    "Connecting to Sqlite3 Storage database: {:?}",
+                    self.sqlite3_path
+                );
                 let db = Sqlite3Storage::new(
                     self.sqlite3_path.as_ref().unwrap().clone(),
                     self.tables_prefix.clone(),
@@ -39,6 +43,10 @@ impl Args {
                 if self.postgres_db_dsn.is_none() {
                     panic!("postgres_db_dsn is required for Postgres Storage");
                 }
+                info!(
+                    "Connecting to Postgres Storage database: {:?}",
+                    self.postgres_db_dsn
+                );
                 let postgres = PostgresStorage::new(
                     self.postgres_db_dsn.as_ref().unwrap().to_string(),
                     self.tables_prefix.clone(),

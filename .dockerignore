@@ -1,1 +1,5 @@
-data
+libsql_data
+postgres_data
+./docker-comse/libsql_data
+./docker-compose/postgres_data
+target

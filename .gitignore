@@ -6,4 +6,5 @@ db.db-wal
 .env
 .xata
 .xatarc
-data/
+libsql_data/
+postgres_data/
