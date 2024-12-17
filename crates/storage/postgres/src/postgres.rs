@@ -119,9 +119,9 @@ impl Storage for PostgresStorage {
 
     async fn create_indexes(&self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         let indexes = vec![
-            format!("CREATE INDEX IF NOT EXISTS idx_{0}_blocks_hash ON {0}_blocks(hash);", self.tables_prefix),
+            format!("CREATE INDEX IF NOT EXISTS idx_{0}_blocks_hash ON {0}_blocks (hash);", self.tables_prefix),
+            format!("CREATE INDEX IF NOT EXISTS idx_{0}_blocks_number ON {0}_blocks (number);", self.tables_prefix),
             format!("CREATE INDEX IF NOT EXISTS idx_{0}_blocks_matured ON {0}_blocks (matured);", self.tables_prefix),
-            format!("CREATE INDEX IF NOT EXISTS idx_{0}_blocks_number ON {0}_blocks(number);", self.tables_prefix),
             format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_block_hash ON {0}_transactions(block_hash);", self.tables_prefix),
             format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_from_addr ON {0}_transactions(from_addr);", self.tables_prefix),
             format!("CREATE INDEX IF NOT EXISTS idx_{0}_transactions_to_addr ON {0}_transactions(to_addr);", self.tables_prefix),
@@ -205,12 +205,11 @@ impl Storage for PostgresStorage {
     ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         let result = sqlx::query(
             format!(
-                "UPDATE {}_blocks SET matured = 1 WHERE number <= $1 AND matured = 0",
-                self.tables_prefix
+                "UPDATE {}_blocks SET matured = 1 WHERE number <= {} AND matured = 0",
+                self.tables_prefix, block_height
             )
             .as_str(),
         )
-        .bind(block_height)
         .execute(&self.pool)
         .await
         .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
@@ -232,7 +231,10 @@ impl Storage for PostgresStorage {
                     &address[..8]
                 );
                 let tx_hash_foreign_key = if self.modules.contains(&"transactions".to_string()) {
-                    format!("REFERENCES {0}_transactions(hash) ON DELETE CASCADE ON UPDATE CASCADE", self.tables_prefix)
+                    format!(
+                        "REFERENCES {0}_transactions(hash) ON DELETE CASCADE ON UPDATE CASCADE",
+                        self.tables_prefix
+                    )
                 } else {
                     "".to_string()
                 };
@@ -503,13 +505,12 @@ impl Storage for PostgresStorage {
                 table_names.push(format!("{}_transactions", tables_prefix));
 
                 for table in table_names {
-                    let delete_query =
-                        format!("DELETE FROM {} WHERE created_at < to_timestamp($1)", table);
+                    let delete_query = format!(
+                        "DELETE FROM {} WHERE created_at < to_timestamp({})",
+                        table, cutoff_timestamp
+                    );
 
-                    let res = sqlx::query(&delete_query)
-                        .bind(cutoff_timestamp)
-                        .execute(&pool)
-                        .await;
+                    let res = sqlx::query(&delete_query).execute(&pool).await;
                     if let Err(e) = res {
                         error!("Failed to delete old records from {}: {:?}", table, e);
                     } else {
@@ -584,14 +585,13 @@ impl Storage for PostgresStorage {
         let mut query_parts = Vec::new();
         for table in &table_names {
             query_parts.push(format!(
-                "SELECT from_addr, to_addr, value, tx_hash, address FROM {} WHERE tx_hash = $1",
-                table
+                "SELECT from_addr, to_addr, value, tx_hash, address FROM {} WHERE tx_hash = '{}'",
+                table, tx_hash
             ));
         }
         let query = query_parts.join(" UNION ALL ");
 
         let token_transfers = sqlx::query_as::<_, TokenTransfer>(&query)
-            .bind(tx_hash)
             .fetch_all(&self.pool)
             .await
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
@@ -645,12 +645,11 @@ impl Storage for PostgresStorage {
     ) -> Result<Vec<Transaction>, Pin<Box<dyn Error + Send + Sync>>> {
         let transactions = sqlx::query_as::<_, Transaction>(
             format!(
-                "SELECT * FROM {}_transactions WHERE block_number = $1",
-                self.tables_prefix
+                "SELECT * FROM {}_transactions WHERE block_number = {}",
+                self.tables_prefix, block_number
             )
             .as_str(),
         )
-        .bind(block_number)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
@@ -664,12 +663,11 @@ impl Storage for PostgresStorage {
     ) -> Result<Transaction, Pin<Box<dyn Error + Send + Sync>>> {
         let transaction = sqlx::query_as::<_, Transaction>(
             format!(
-                "SELECT * FROM {}_transactions WHERE hash = $1",
-                self.tables_prefix
+                "SELECT * FROM {}_transactions WHERE hash = '{}'",
+                self.tables_prefix, hash
             )
             .as_str(),
         )
-        .bind(hash)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
@@ -694,19 +692,17 @@ impl Storage for PostgresStorage {
     ) -> Result<Vec<Block>, Pin<Box<dyn Error + Send + Sync>>> {
         let query = if end < 0 {
             format!(
-                "SELECT * FROM {}_blocks WHERE number >= $1",
-                self.tables_prefix
+                "SELECT * FROM {}_blocks WHERE number >= {}",
+                self.tables_prefix, start
             )
         } else {
             format!(
-                "SELECT * FROM {}_blocks WHERE number >= $1 AND number <= $2",
-                self.tables_prefix
+                "SELECT * FROM {}_blocks WHERE number >= {} AND number <= {}",
+                self.tables_prefix, start, end
             )
         };
 
         let blocks = sqlx::query_as::<_, Block>(&query)
-            .bind(start)
-            .bind(end)
             .fetch_all(&self.pool)
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
@@ -719,12 +715,11 @@ impl Storage for PostgresStorage {
     ) -> Result<Block, Pin<Box<dyn Error + Send + Sync>>> {
         let block = sqlx::query_as::<_, Block>(
             format!(
-                "SELECT * FROM {}_blocks WHERE number = $1",
-                self.tables_prefix
+                "SELECT * FROM {}_blocks WHERE number = {}",
+                self.tables_prefix, block_number
             )
             .as_str(),
         )
-        .bind(block_number)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
@@ -737,12 +732,11 @@ impl Storage for PostgresStorage {
     ) -> Result<Block, Pin<Box<dyn Error + Send + Sync>>> {
         let block = sqlx::query_as::<_, Block>(
             format!(
-                "SELECT * FROM {}_blocks WHERE hash = $1",
-                self.tables_prefix
+                "SELECT * FROM {}_blocks WHERE hash = '{}'",
+                self.tables_prefix, block_hash
             )
             .as_str(),
         )
-        .bind(block_hash)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
