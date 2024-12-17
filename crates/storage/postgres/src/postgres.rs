@@ -201,12 +201,13 @@ impl Storage for PostgresStorage {
 
     async fn update_blocks_to_matured(
         &self,
-        block_height: i64,
+        from: i64,
+        to: i64,
     ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         let result = sqlx::query(
             format!(
-                "UPDATE {}_blocks SET matured = 1 WHERE number <= {} AND matured = 0",
-                self.tables_prefix, block_height
+                "UPDATE {}_blocks SET matured = 1 WHERE number >= {} AND number <= {} AND matured = 0",
+                self.tables_prefix, from, to
             )
             .as_str(),
         )

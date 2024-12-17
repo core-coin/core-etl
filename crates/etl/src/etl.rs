@@ -162,7 +162,8 @@ impl ETLWorker {
                 self.sync_old_blocks().await?;
             }
 
-            self.update_blocks_to_matured(block_height - 5).await?;
+            self.update_blocks_to_matured(block_height - 10, block_height - 5)
+                .await?;
         }
 
         Ok(())
@@ -254,9 +255,10 @@ impl ETLWorker {
 
     async fn sync_old_blocks(&mut self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         Box::pin(async move {
-            let latest_provider_block = self.provider_get_block(BlockNumberOrTag::Latest).await?;
-            self.update_blocks_to_matured(latest_provider_block.number - 5)
+            self.update_blocks_to_matured(self.last_saved_block - 10001, self.last_saved_block - 5)
                 .await?;
+
+            let latest_provider_block = self.provider_get_block(BlockNumberOrTag::Latest).await?;
 
             // already synced
             if self.last_saved_block == latest_provider_block.number
@@ -325,6 +327,11 @@ impl ETLWorker {
                 )
                 .await?;
 
+                if log_counter % 10000 == 0 {
+                    self.update_blocks_to_matured(log_counter - 10001, log_counter)
+                        .await?;
+                }
+
                 if latest_provider_block.number == block_to_load {
                     self.safe_insert(true, &mut blocks, &mut transactions, &mut token_transfers)
                         .await?;
@@ -342,9 +349,10 @@ impl ETLWorker {
 
     pub async fn update_blocks_to_matured(
         &mut self,
-        block_height: i64,
+        from: i64,
+        to: i64,
     ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
-        self.storage.update_blocks_to_matured(block_height).await
+        self.storage.update_blocks_to_matured(from, to).await
     }
 
     async fn extract_token_transfers(

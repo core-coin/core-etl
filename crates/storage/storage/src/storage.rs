@@ -17,7 +17,8 @@ pub trait Storage: Send + Sync {
     /// Update blocks to matured
     async fn update_blocks_to_matured(
         &self,
-        block_number: i64,
+        from: i64,
+        to: i64,
     ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>>;
     /// Create all token transfers tables
     async fn create_token_transfers_tables(

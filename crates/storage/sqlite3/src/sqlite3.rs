@@ -210,15 +210,16 @@ impl Storage for Sqlite3Storage {
         }
     }
 
-    async fn update_blocks_to_matured(&self, block_height: i64) -> Result<()> {
+    async fn update_blocks_to_matured(&self, from: i64, to: i64) -> Result<()> {
         let result = sqlx::query(
             format!(
-                "UPDATE {}_blocks SET matured = 1 WHERE number <= ? AND matured = 0",
+                "UPDATE {}_blocks SET matured = 1 WHERE number >= ? AND number <= ? AND matured = 0",
                 self.tables_prefix
             )
             .as_str(),
         )
-        .bind(block_height)
+        .bind(from)
+        .bind(to)
         .execute(self.get_db())
         .await
         .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;

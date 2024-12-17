@@ -72,7 +72,8 @@ impl Storage for MockStorage {
 
     async fn update_blocks_to_matured(
         &self,
-        _block_number: i64,
+        _from: i64,
+        _to: i64,
     ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         Ok(())
     }
