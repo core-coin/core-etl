@@ -29,7 +29,7 @@ keywords = ["core blockchain", "xcb", "etl"]
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/core-coin/core-etl"
 repository = "https://github.com/core-coin/core-etl"
-version = "0.0.1"
+version = "1.0.0"
 
 [workspace.dependencies]
 # Workspace members

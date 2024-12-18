@@ -18,6 +18,12 @@ impl MockStorage {
     }
 }
 
+impl Default for MockStorage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Storage for MockStorage {
     async fn prepare_db(&self) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {

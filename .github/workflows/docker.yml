@@ -1,0 +1,40 @@
+on:
+  workflow_run:
+    workflows: ["ci.yml"]
+    types:
+      - completed
+    with:
+      ref: main
+      status: success
+      conclusion: success
+      steps:
+        - name: artifacts
+jobs:
+  docker:
+    name: docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Get version from Cargo.toml
+        id: cargo-version
+        run: echo "::set-output name=VERSION::$(grep '^version =' Cargo.toml | sed -E 's/version = \"(.*)\"/\1/')"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          driver-opts: network=host
+      - name: Install QEMU for Multi-Platform Builds
+        uses: docker/setup-qemu-action@v2
+      - name: Log in to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build and Push Docker Image for Multiple Architectures
+        run: |
+          docker buildx create --use
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --tag ghcr.io/core-coin/core-etl:v${{ steps.cargo-version.outputs.VERSION }} \
+            --tag ghcr.io/core-coin/core-etl:latest \
+            --push .
+      - name: Verify Image Digest (Optional)
+        run: docker buildx imagetools inspect ghcr.io/core-coin/core-etl:latest

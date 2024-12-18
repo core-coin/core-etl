@@ -26,42 +26,38 @@ pub struct Block {
     pub matured: i64,
 }
 
-impl Into<Block> for AtomsBlock {
-    fn into(self) -> Block {
+impl From<AtomsBlock> for Block {
+    fn from(val: AtomsBlock) -> Self {
         Block {
-            difficulty: self.header.difficulty.to_string(),
-            energy_limit: self.header.energy_limit as i64,
-            energy_used: self.header.energy_used as i64,
-            extra_data: self.header.extra_data.encode_hex(),
-            hash: self
+            difficulty: val.header.difficulty.to_string(),
+            energy_limit: val.header.energy_limit as i64,
+            energy_used: val.header.energy_used as i64,
+            extra_data: val.header.extra_data.encode_hex(),
+            hash: val
                 .header
                 .hash
                 .expect("block hash must be set")
                 .encode_hex(), // todo:error2215 do smth fix expects
-            logs_bloom: self.header.logs_bloom.encode_hex(),
-            miner: self.header.miner.to_string(),
-            nonce: self
+            logs_bloom: val.header.logs_bloom.encode_hex(),
+            miner: val.header.miner.to_string(),
+            nonce: val
                 .header
                 .nonce
                 .expect("block nonce must be set")
                 .encode_hex(), // todo:error2215 do smth fix expects
-            number: self
-                .header
-                .number
-                .expect("block number must be set")
-                .to_le() as i64, // todo:error2215 do smth fix expects
-            parent_hash: self.header.parent_hash.encode_hex(),
-            receipts_root: self.header.receipts_root.encode_hex(),
-            sha3_uncles: self.header.uncles_hash.encode_hex(),
-            state_root: self.header.state_root.encode_hex(),
-            timestamp: self.header.timestamp as i64,
-            total_difficulty: self
+            number: val.header.number.expect("block number must be set").to_le() as i64, // todo:error2215 do smth fix expects
+            parent_hash: val.header.parent_hash.encode_hex(),
+            receipts_root: val.header.receipts_root.encode_hex(),
+            sha3_uncles: val.header.uncles_hash.encode_hex(),
+            state_root: val.header.state_root.encode_hex(),
+            timestamp: val.header.timestamp as i64,
+            total_difficulty: val
                 .header
                 .total_difficulty
                 .unwrap_or(U256::from(0))
                 .to_string(),
-            transaction_count: self.transactions.len() as i64,
-            transactions_root: self.header.transactions_root.encode_hex(),
+            transaction_count: val.transactions.len() as i64,
+            transactions_root: val.header.transactions_root.encode_hex(),
             matured: 0,
         }
     }

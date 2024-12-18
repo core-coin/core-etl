@@ -28,7 +28,7 @@ impl SmartContract for Cbc20 {
                 return true;
             }
         }
-        return false;
+        false
     }
 
     fn extract_call_data(
@@ -42,7 +42,7 @@ impl SmartContract for Cbc20 {
                 let from = sender;
                 let to = input[28..72].to_string();
                 let value = input[72..136].to_string();
-                return vec![(0, from, to, value)];
+                vec![(0, from, to, value)]
             }
             /*
             /// Example:
@@ -67,14 +67,14 @@ impl SmartContract for Cbc20 {
                         .to_string();
                     res.push((i, sender.clone(), to, value));
                 }
-                return res;
+                res
             }
             // Example: 31f2e679 + 00000000000000000000ab416902d2548d52352a05423d13266ee7aaf140a068 + 00000000000000000000ab416902d2548d52352a05423d13266ee7aaf140a068 + 0000000000000000000000000000000000000000000000000000000000000001
             "31f2e679" => {
                 let from = input[28..72].to_string();
                 let to = input[92..136].to_string();
                 let value = input[136..200].to_string();
-                return vec![(0, from, to, value)];
+                vec![(0, from, to, value)]
             }
             _ => panic!("Unsupported transfer function: {:?}", input),
         }
@@ -85,7 +85,7 @@ impl SmartContract for Cbc20 {
     }
 
     fn get_table_name(&self) -> String {
-        return format!("{}_{}_transfers", NAME, &self.get_address()[..8]);
+        format!("{}_{}_transfers", NAME, &self.get_address()[..8])
     }
 
     fn clone_dyn(&self) -> Box<dyn SmartContract> {

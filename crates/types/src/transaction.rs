@@ -20,26 +20,20 @@ pub struct Transaction {
     pub input: String,
 }
 
-impl Into<Transaction> for &AtomsTrasaction {
-    fn into(self) -> Transaction {
+impl From<&AtomsTrasaction> for Transaction {
+    fn from(val: &AtomsTrasaction) -> Self {
         Transaction {
-            block_hash: self.block_hash.unwrap_or(B256::ZERO).encode_hex(),
-            block_number: self.block_number.unwrap_or(0) as i64,
-            energy: self.energy.to_string(),
-            energy_price: self.energy_price.unwrap_or(0).to_string(),
-            from: self.from.to_string(),
-            hash: self.hash.encode_hex(),
-            input: self.input.encode_hex(),
-            // network_id: self.network_id as i64,
-            nonce: self.nonce.to_string(),
-            // signature: {
-            //     self.signature
-            //         .map(|t| t.sig().encode_hex())
-            //         .unwrap_or("".to_string())
-            // },
-            to: { self.to.map(|t| t.to_string()).unwrap_or("".to_string()) },
-            transaction_index: { self.transaction_index.map(|t| t as i64).unwrap_or(0) },
-            value: self.value.to_string(),
+            block_hash: val.block_hash.unwrap_or(B256::ZERO).encode_hex(),
+            block_number: val.block_number.unwrap_or(0) as i64,
+            energy: val.energy.to_string(),
+            energy_price: val.energy_price.unwrap_or(0).to_string(),
+            from: val.from.to_string(),
+            hash: val.hash.encode_hex(),
+            input: val.input.encode_hex(),
+            nonce: val.nonce.to_string(),
+            to: { val.to.map(|t| t.to_string()).unwrap_or("".to_string()) },
+            transaction_index: { val.transaction_index.map(|t| t as i64).unwrap_or(0) },
+            value: val.value.to_string(),
         }
     }
 }

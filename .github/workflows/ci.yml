@@ -1,0 +1,136 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  test:
+    name: Test on ${{ matrix.config.os }} ${{ matrix.config.arch }}
+    runs-on: ${{ matrix.config.platform }}
+    strategy:
+      matrix:
+        config:
+          - {platform: windows-latest,   os: windows, arch: amd64, path: windows-x86_64}
+          - {platform: macos-13,         os: darwin,  arch: amd64, path: darwin-x86_64}
+          - {platform: macos-latest,     os: darwin,  arch: arm64, path: darwin-arm64}
+          - {platform: ubuntu-latest,    os: linux,   arch: amd64, path: linux-x86_64}
+          - {platform: raspbian-private, os: linux,   arch: arm64, path: linux-arm64}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Install OpenSSL and pkg-config (Linux ARM64 only)
+        if: matrix.config.path == 'linux-arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config
+
+      - name: Set PKG_CONFIG_PATH (Linux ARM64 only)
+        if: matrix.config.path == 'linux-arm64'
+        run: echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+
+      - name: Install clippy
+        run: rustup component add clippy --toolchain stable
+
+      - name: Run clippy
+        run: make clippy
+
+      - name: Run tests
+        run: make test
+
+      - name: Build release artifact
+        if: github.ref == 'refs/heads/master'
+        run: make build
+
+      - name: Upload artifacts
+        if: github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-etl-${{ matrix.config.path }}
+          path: ./target/release/core-etl${{ matrix.config.os == 'windows' && '.exe' || '' }}
+
+  release:
+    if: github.ref == 'refs/heads/master'
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Get version from Cargo.toml
+        id: cargo-version
+        run: echo "::set-output name=VERSION::$(grep '^version =' Cargo.toml | sed -E 's/version = \"(.*)\"/\1/')"
+
+      - name: Create new tag
+        id: tag
+        run: |
+          git fetch --tags
+          TAG_EXISTS=$(git tag -l "v${{ steps.cargo-version.outputs.VERSION }}")
+          if [ -n "$TAG_EXISTS" ]; then
+            echo "Tag v${{ steps.cargo-version.outputs.VERSION }} already exists"
+            exit 1
+          fi
+          git tag v${{ steps.cargo-version.outputs.VERSION }}
+          git push origin v${{ steps.cargo-version.outputs.VERSION }}
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: v${{ steps.cargo-version.outputs.VERSION }}
+          release_name: Release v${{ steps.cargo-version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  artifacts:
+    needs: release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [
+          {path: linux-x86_64, file_ext: ""},
+          {path: windows-x86_64, file_ext: ".exe"},
+          {path: linux-arm64, file_ext: ""},
+          {path: darwin-x86_64, file_ext: ""},
+          {path: darwin-arm64, file_ext: ""},
+        ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: core-etl-${{ matrix.platform.path }}
+          path: ./core-etl-${{ matrix.platform.path }}
+
+      - name: Upload release assets
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: ./core-etl-${{ matrix.platform.path }}/core-etl${{ matrix.platform.file_ext }}
+          asset_name: core-etl-${{ matrix.platform.path }}${{ matrix.platform.file_ext }}
+          asset_content_type: application/octet-stream
