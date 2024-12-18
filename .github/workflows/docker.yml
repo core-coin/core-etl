@@ -1,4 +1,3 @@
-D
 on:
   workflow_run:
     workflows: ["ci.yml"]
