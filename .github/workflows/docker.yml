@@ -1,16 +1,16 @@
+name: Docker Image CD Pipeline
+
 on:
-  workflow_run:
-    workflows: ["ci.yml"]
-    types:
-      - completed
-    with:
-      ref: main
-      status: success
-      conclusion: success
-      steps:
-        - name: artifacts
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
 jobs:
   docker:
+    if: github.ref == 'refs/heads/master'
     name: docker
     runs-on: ubuntu-latest
     steps:
