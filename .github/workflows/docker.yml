@@ -1,9 +1,13 @@
-name: Docker Image CD
+name: Docker Image CD Pipeline
+
 on:
-  workflow_run:
-    workflows: ["ci.yml"]
-    types:
-      - completed
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
 jobs:
   docker:
     if: github.ref == 'refs/heads/master'
