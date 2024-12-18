@@ -17,9 +17,7 @@ services:
     restart: always
 
   core-etl:
-    build:
-      context: ./..
-      dockerfile: Dockerfile
+    image: ghcr.io/core-coin/core-cli:latest
     container_name: core-etl
     depends_on:
       - etl-postgres

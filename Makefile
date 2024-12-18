@@ -2,17 +2,12 @@
 CORE_ETL_FLAGS ?= -s /libsql_data/data.sqld/dbs/default/data
 CORE_ETL_EXPORT_FLAGS ?= -w="ctn" -l
 GO_CORE_FLAGS ?= --ws --ws.addr 0.0.0.0 --syncmode fast --cache=128 --snapshot=false
+CARGO := cargo
 
 # Targets
-.PHONY: build-libsql up-libsql down-libsql clean-libsql init-libsql sync-local-libsql sync-remote-libsql stop-libsql start-libsql clean-volume-libsql 
+.PHONY: build-libsql up-libsql down-libsql clean-libsql init-libsql sync-local-libsql sync-remote-libsql stop-libsql start-libsql clean-volume-libsql
 .PHONY: build-postgres up-postgres down-postgres clean-volume-postgres init-postgres sync-local-postgres sync-remote-postgres stop-postgres start-postgres
-
-clean:
-	@echo "Cleaning up core-etl.log, sqlite3.db and db.db"
-	@rm -f core-etl.log
-	@rm -f sqlite3.db sqlite3.db-shm sqlite3.db-wal sqlite3_dump.sql
-	@rm -f db.db db.db-shm db.db-wal db_dump.sql
-
+.PHONY: build run run-debug test clean fmt clippy
 
 ######################################### LIBSQL #########################################
 
@@ -90,3 +85,33 @@ clean-volume-postgres:
 
 
 
+build:
+	$(CARGO) build --release
+
+# Build the project in debug mode
+debug:
+	$(CARGO) build
+
+# Run the project in release mode
+run:
+	$(CARGO) run --release
+
+# Run the project in debug mode
+run-debug:
+	$(CARGO) run
+
+# Test the project
+test:
+	$(CARGO) test --all-targets --all-features
+
+# Clean the project
+clean:
+	$(CARGO) clean
+
+# Format the code
+fmt:
+	$(CARGO) fmt
+
+# Check for common mistakes
+clippy:
+	$(CARGO) clippy --all-targets --all-features -- -D warnings

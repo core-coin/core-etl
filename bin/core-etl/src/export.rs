@@ -108,9 +108,7 @@ impl ExportArgs {
             let mut split = token.split(':');
             let token_type = split.next().unwrap().to_string();
             let token_address = split.next().unwrap().to_string();
-            map.entry(token_type)
-                .or_insert_with(HashSet::new)
-                .insert(token_address);
+            map.entry(token_type).or_default().insert(token_address);
         }
         map
     }

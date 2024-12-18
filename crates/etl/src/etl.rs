@@ -38,6 +38,11 @@ impl Clone for ETLWorker {
     }
 }
 
+type ProcessResult = Result<
+    (Block, Vec<Transaction>, HashMap<String, Vec<TokenTransfer>>),
+    Pin<Box<dyn Error + Send + Sync>>,
+>;
+
 impl ETLWorker {
     pub async fn new(
         config: Config,
@@ -53,7 +58,7 @@ impl ETLWorker {
             last_checked_block: 0,
         };
 
-        if etl.config.watch_tokens.len() > 0 {
+        if !etl.config.watch_tokens.is_empty() {
             match etl
                 .storage
                 .create_token_transfers_tables(etl.config.watch_tokens.clone())
@@ -139,14 +144,15 @@ impl ETLWorker {
                 token_transfers.values().map(|v| v.len()).sum::<usize>()
             );
 
-            if let Err(_) = self
+            if (self
                 .safe_insert(
                     true,
                     &mut vec![block.clone()],
                     &mut transactions,
                     &mut token_transfers,
                 )
-                .await
+                .await)
+                .is_err()
             {
                 info!(
                     "Reorg detected on height {}, cleaning the data and reimporting the block",
@@ -191,13 +197,10 @@ impl ETLWorker {
 
         // apply filters
         if !self.config.address_filter.is_empty() {
-            new_txs = new_txs
-                .into_iter()
-                .filter(|tx| {
-                    self.config.address_filter.contains(&tx.from)
-                        || self.config.address_filter.contains(&tx.to)
-                })
-                .collect();
+            new_txs.retain(|tx| {
+                self.config.address_filter.contains(&tx.from)
+                    || self.config.address_filter.contains(&tx.to)
+            });
         }
 
         Ok((new_block, new_txs, new_token_transfers))
@@ -208,12 +211,7 @@ impl ETLWorker {
         blocks: &mut Vec<Block>,
         transactions: &mut Vec<Transaction>,
         token_transfers: &mut HashMap<String, Vec<TokenTransfer>>,
-        results: Vec<
-            Result<
-                (Block, Vec<Transaction>, HashMap<String, Vec<TokenTransfer>>),
-                Pin<Box<dyn Error + Send + Sync>>,
-            >,
-        >,
+        results: Vec<ProcessResult>,
     ) -> Result<(), Pin<Box<dyn Error + Send + Sync>>> {
         for res in results {
             match res {
@@ -221,15 +219,12 @@ impl ETLWorker {
                     blocks.push(block);
                     transactions.extend(txs);
                     for (key, values) in token_transfers_batch {
-                        token_transfers
-                            .entry(key)
-                            .or_insert_with(Vec::new)
-                            .extend(values);
+                        token_transfers.entry(key).or_default().extend(values);
                     }
                     self.safe_insert(false, blocks, transactions, token_transfers)
                         .await?;
                 }
-                Err(e) => return Err(Pin::from(e)),
+                Err(e) => return Err(e),
             }
         }
         Ok(())
@@ -286,14 +281,7 @@ impl ETLWorker {
             let mut token_transfers: HashMap<String, Vec<TokenTransfer>> = HashMap::new();
 
             'outer: loop {
-                let mut tasks: Vec<
-                    JoinHandle<
-                        Result<
-                            (Block, Vec<Transaction>, HashMap<String, Vec<TokenTransfer>>),
-                            Pin<Box<dyn Error + Send + Sync>>,
-                        >,
-                    >,
-                > = vec![];
+                let mut tasks: Vec<JoinHandle<Result<_, _>>> = vec![];
 
                 for _ in 0..self.config.threads {
                     let clone: ETLWorker = self.clone();
@@ -318,7 +306,7 @@ impl ETLWorker {
                     .await
                     .into_iter()
                     .collect::<Result<Vec<_>, _>>()
-                    .map_err(|e| Box::from(e))?;
+                    .map_err(Box::from)?;
                 self.process_results(
                     &mut blocks,
                     &mut transactions,
@@ -380,7 +368,7 @@ impl ETLWorker {
                         tx_hash: tx.hash.clone(),
                         address: sc.get_address(),
                         index: index as i64,
-                        status: receipt.status().then(|| 1).unwrap_or(0),
+                        status: if receipt.status() { 1 } else { 0 },
                     })
                     .collect();
                 if !processor_token_transfers.is_empty() {

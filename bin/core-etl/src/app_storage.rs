@@ -11,17 +11,17 @@ use tracing::info;
 #[serde(rename_all = "kebab-case")]
 pub enum StorageType {
     #[default]
-    Sqlite3Storage,
-    PostgresStorage,
-    MockStorage,
+    Sqlite3,
+    Postgres,
+    Mock,
 }
 
 impl Args {
     pub async fn choose_storage(&self) -> Arc<dyn Storage + Send + Sync> {
         info!("Storing data about: {:?}", self.modules.clone());
         match self.storage {
-            StorageType::MockStorage => Arc::new(MockStorage::new()),
-            StorageType::Sqlite3Storage => {
+            StorageType::Mock => Arc::new(MockStorage::new()),
+            StorageType::Sqlite3 => {
                 if self.sqlite3_path.is_none() {
                     panic!("sqlite3_path is required for Sqlite3 Storage");
                 }
@@ -39,7 +39,7 @@ impl Args {
                 db.prepare_db().await.unwrap();
                 Arc::new(db)
             }
-            StorageType::PostgresStorage => {
+            StorageType::Postgres => {
                 if self.postgres_db_dsn.is_none() {
                     panic!("postgres_db_dsn is required for Postgres Storage");
                 }
