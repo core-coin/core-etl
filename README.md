@@ -77,7 +77,7 @@ Flag | Description | Environment Variable | Default Value
 ---| --- | --- | ---
 `-r, --rpc-url <RPC_URL>` | URL of the RPC node that provides the blockchain data. | `RPC_URL` | wss://xcbws.coreblockchain.net
 `-n, --network <NETWORK>` | Network to sync data from (e.g., mainnet, devin, private). | `NETWORK` | Mainnet
-`--storage <STORAGE>` | Storage type for saving blockchain data (e.g., sqlite3-storage, postgres-storage). | `STORAGE` | sqlite3-storage
+`--storage <STORAGE>` | Storage type for saving blockchain data (e.g., sqlite3, postgres). | `STORAGE` | sqlite3
 `-s, --sqlite3-path <SQLITE3_PATH>` | Path to SQLite3 file where the blockchain data is saved. | `SQLITE3_PATH` | None
 `-p, --postgres-db-dsn <POSTGRES_DB_DSN>` | Postgres database DSN where the blockchain data is saved. | `POSTGRES_DB_DSN` | None
 `-t, --tables-prefix <TABLES_PREFIX>` | Prefix for the tables in the database. Useful when running multiple instances. | `TABLES_PREFIX` | etl
@@ -173,7 +173,7 @@ You can configure `core-etl` using environment variables or command-line flags. 
 
 ```bash
 export NETWORK="mainnet"
-export STORAGE="sqlite3-storage"
+export STORAGE="sqlite3"
 export SQLITE3_PATH="/path/to/your/sqlite3.db"
 export TABLES_PREFIX="etl"
 export MODULES="blocks,transactions,token_transfers"
@@ -182,7 +182,7 @@ export MODULES="blocks,transactions,token_transfers"
 ### Command-Line Flags
 
 ```bash
-./core-etl -n mainnet --storage sqlite3-storage -s /path/to/your/sqlite3.db -t etl -m blocks,transactions,token_transfers export
+./core-etl -n mainnet --storage sqlite3 -s /path/to/your/sqlite3.db -t etl -m blocks,transactions,token_transfers export
 ```
 
 ## Examples
@@ -204,7 +204,7 @@ Export only transaction data for the Devin network to SQLite3 storage, using 10 
 Export transactions and CTN transfers to Postgres with a cleanup interval of 1 hour and retention period of 24 hours:
 
 ```bash
-./core-etl --storage postgres-storage -p postgres://user:password@localhost:5432/dbname -m transactions,token_transfers export -w "ctn" -r 86400 -c 3600
+./core-etl --storage postgres -p postgres://user:password@localhost:5432/dbname -m transactions,token_transfers export -w "ctn" -r 86400 -c 3600
 ```
 
 Export blocks and transactions using a local node, with the `filtered_etl` table prefix. Do not sync data until the node is synced. Also, filter transactions by address `cb22as..21`:

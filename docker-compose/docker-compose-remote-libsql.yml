@@ -14,7 +14,7 @@ services:
     restart: always
 
   core-etl:
-    image: ghcr.io/core-coin/core-cli:latest
+    image: ghcr.io/core-coin/core-etl:latest
     container_name: core-etl
     depends_on:
       - libsql-server
