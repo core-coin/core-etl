@@ -806,7 +806,7 @@ dependencies = [
 
 [[package]]
 name = "cbc20"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "contracts",
 ]
@@ -910,7 +910,7 @@ checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
 
 [[package]]
 name = "config"
-version = "1.0.0"
+version = "1.0.1"
 
 [[package]]
 name = "const-hex"
@@ -927,7 +927,7 @@ dependencies = [
 
 [[package]]
 name = "contracts"
-version = "1.0.0"
+version = "1.0.1"
 
 [[package]]
 name = "convert_case"
@@ -937,7 +937,7 @@ checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 
 [[package]]
 name = "core-etl-bin"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "atoms-rpc-types",
@@ -1188,7 +1188,7 @@ dependencies = [
 
 [[package]]
 name = "etl"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -2044,7 +2044,7 @@ dependencies = [
 
 [[package]]
 name = "mock_storage"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "storage",
@@ -2331,7 +2331,7 @@ checksum = "953ec861398dccce10c670dfeaf3ec4911ca479e9c02154b3a215178c5f566f2"
 
 [[package]]
 name = "postgres_storage"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "base-primitives",
@@ -2430,7 +2430,7 @@ dependencies = [
 
 [[package]]
 name = "provider"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "atoms-json-rpc",
  "atoms-provider",
@@ -3000,7 +3000,7 @@ dependencies = [
 
 [[package]]
 name = "sqlite3_storage"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "base-primitives",
@@ -3120,7 +3120,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "storage"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "async-trait",
  "sqlx",
@@ -3546,7 +3546,7 @@ checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 
 [[package]]
 name = "types"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "atoms-rpc-types",
  "base-primitives",
