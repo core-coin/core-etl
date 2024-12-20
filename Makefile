@@ -58,12 +58,12 @@ build-postgres:
 # Builds, (re)creates, starts, and attaches to containers for a service
 # This runs the additional go-core container 
 sync-local-postgres:
-	GO_CORE_FLAGS="$(GO_CORE_FLAGS)" CORE_ETL_FLAGS="-r ws://localhost:8546 --storage postgres-storage -p postgres://etl_user:etl_password@localhost:5432/etl_database" CORE_ETL_EXPORT_FLAGS="$(CORE_ETL_EXPORT_FLAGS)" docker-compose -f ./docker-compose/docker-compose-local-postgres.yml up -d
+	GO_CORE_FLAGS="$(GO_CORE_FLAGS)" CORE_ETL_FLAGS="-r ws://localhost:8546 --storage postgres -p postgres://etl_user:etl_password@localhost:5432/etl_database" CORE_ETL_EXPORT_FLAGS="$(CORE_ETL_EXPORT_FLAGS)" docker-compose -f ./docker-compose/docker-compose-local-postgres.yml up -d
 
 # Builds, (re)creates, starts, and attaches to containers for a service
 # This runs the additional go-core container 
 sync-remote-postgres:
-	CORE_ETL_FLAGS="-n mainnet --storage postgres-storage -p postgres://etl_user:etl_password@localhost:5432/etl_database" CORE_ETL_EXPORT_FLAGS="$(CORE_ETL_EXPORT_FLAGS)" docker-compose -f ./docker-compose/docker-compose-remote-postgres.yml up -d
+	CORE_ETL_FLAGS="-n mainnet --storage postgres -p postgres://etl_user:etl_password@localhost:5432/etl_database" CORE_ETL_EXPORT_FLAGS="$(CORE_ETL_EXPORT_FLAGS)" docker-compose -f ./docker-compose/docker-compose-remote-postgres.yml up -d
 
 # Stops and removes containers, networks, volumes, and images created by docker-compose up
 down-postgres:
